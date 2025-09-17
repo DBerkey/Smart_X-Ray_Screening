@@ -1,6 +1,6 @@
-<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36" version="28.2.0">
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36" version="28.2.1">
   <diagram name="Page-1" id="zbbegBBSre_oQoZ3Mn-0">
-    <mxGraphModel dx="1423" dy="786" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+    <mxGraphModel dx="797" dy="440" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -94,9 +94,6 @@
         <mxCell id="Gdr_BZg6z6cCifK96JbI-46" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;dashed=1;dashPattern=8 8;fontColor=light-dark(#000000,#000000);labelBackgroundColor=none;" parent="1" source="Gdr_BZg6z6cCifK96JbI-39" target="Gdr_BZg6z6cCifK96JbI-44" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="Gdr_BZg6z6cCifK96JbI-48" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;dashed=1;dashPattern=8 8;fontColor=light-dark(#000000,#000000);labelBackgroundColor=none;" parent="1" source="Gdr_BZg6z6cCifK96JbI-39" target="Gdr_BZg6z6cCifK96JbI-47" edge="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
         <mxCell id="Gdr_BZg6z6cCifK96JbI-39" value="defining input &amp;amp; output structure of the data" style="whiteSpace=wrap;html=1;rounded=0;fillColor=light-dark(#FF64EA,#FF64EA);fontColor=light-dark(#000000,#000000);strokeColor=#3700CC;labelBackgroundColor=none;" parent="1" vertex="1">
           <mxGeometry x="500" y="200" width="120" height="60" as="geometry" />
         </mxCell>
@@ -120,16 +117,6 @@
         <mxCell id="Gdr_BZg6z6cCifK96JbI-44" value="Front end" style="whiteSpace=wrap;html=1;rounded=0;fillColor=light-dark(#A18EB3,#A18EB3);fontColor=light-dark(#000000,#000000);strokeColor=#432D57;labelBackgroundColor=none;" parent="1" vertex="1">
           <mxGeometry x="500" y="612" width="740" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="Gdr_BZg6z6cCifK96JbI-56" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontColor=light-dark(#000000,#000000);labelBackgroundColor=none;" parent="1" source="Gdr_BZg6z6cCifK96JbI-47" target="Gdr_BZg6z6cCifK96JbI-55" edge="1">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="640" y="540" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="Gdr_BZg6z6cCifK96JbI-47" value="Data storage" style="rounded=0;whiteSpace=wrap;html=1;fillColor=light-dark(#573D6C,#573D6C);fontColor=light-dark(#000000,#000000);strokeColor=none;gradientColor=none;labelBackgroundColor=none;" parent="1" vertex="1">
-          <mxGeometry x="500" y="350" width="300" height="60" as="geometry" />
-        </mxCell>
         <mxCell id="Gdr_BZg6z6cCifK96JbI-49" value="17-11-2025 Submitting Final report" style="rounded=0;whiteSpace=wrap;html=1;fillColor=light-dark(#4A890C,#4A890C);fontColor=light-dark(#000000,#000000);strokeColor=#2D7600;labelBackgroundColor=none;" parent="1" vertex="1">
           <mxGeometry x="1800" y="120" width="120" height="60" as="geometry" />
         </mxCell>
@@ -149,9 +136,6 @@
         </mxCell>
         <mxCell id="Gdr_BZg6z6cCifK96JbI-53" value="defining model evaluation matrixes" style="whiteSpace=wrap;html=1;rounded=0;fillColor=light-dark(#91479B,#91479B);strokeColor=none;fontColor=light-dark(#000000,#000000);labelBackgroundColor=none;" parent="1" vertex="1">
           <mxGeometry x="680" y="280" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Gdr_BZg6z6cCifK96JbI-55" value="attaching storage to front end" style="whiteSpace=wrap;html=1;rounded=0;fillColor=light-dark(#573D6C,#573D6C);fontColor=light-dark(#000000,#000000);strokeColor=none;labelBackgroundColor=none;" parent="1" vertex="1">
-          <mxGeometry x="860" y="510" width="120" height="60" as="geometry" />
         </mxCell>
         <mxCell id="Gdr_BZg6z6cCifK96JbI-78" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontColor=light-dark(#000000,#000000);labelBackgroundColor=none;" parent="1" source="Gdr_BZg6z6cCifK96JbI-59" target="Gdr_BZg6z6cCifK96JbI-77" edge="1">
           <mxGeometry relative="1" as="geometry" />
@@ -313,9 +297,6 @@
         </mxCell>
         <mxCell id="Gdr_BZg6z6cCifK96JbI-118" value="Software Based" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=light-dark(#000000,#000000);labelBackgroundColor=none;" parent="Gdr_BZg6z6cCifK96JbI-120" vertex="1">
           <mxGeometry x="119" y="111" width="131" height="40" as="geometry" />
-        </mxCell>
-        <mxCell id="AWaWH0SoFkD1T-bXMNSH-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.567;entryY=0.011;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="Gdr_BZg6z6cCifK96JbI-55" target="Gdr_BZg6z6cCifK96JbI-44">
-          <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
