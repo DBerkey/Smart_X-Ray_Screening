@@ -13,9 +13,9 @@
             <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" width="110" height="52" style="padding-left: 5%;">
         </a> 
         <ul class="nav nav-pills"> 
-            <li class="nav-item"><a href="/" class="nav-link active" aria-current="page">Home</a></li> 
-            <li class="nav-item"><a href="#" class="nav-link">User Guide</a></li> 
-            <li class="nav-item"><a href="#" class="nav-link">Technical Details</a></li> 
+            <li class="nav-item"><a href="/" class="nav-link {{"active" if request.path == "/" else ""}}" aria-current="page">Home</a></li> 
+            <li class="nav-item"><a href="/user_guide" class="nav-link {{"active" if request.path == "/user_guide" else ""}}">User Guide</a></li> 
+            <li class="nav-item"><a href="/technical_details" class="nav-link {{"active" if request.path == "/technical_details" else ""}}">Technical Details</a></li> 
         </ul> 
     </header>
     <main>

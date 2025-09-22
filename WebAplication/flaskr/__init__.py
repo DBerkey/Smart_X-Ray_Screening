@@ -1,6 +1,7 @@
 import os
 
 from flask import Flask
+from . import home, user_guide, technical_details
 
 
 def create_app(test_config=None):
@@ -25,7 +26,8 @@ def create_app(test_config=None):
         pass
 
     # register blueprints
-    from . import home
     app.register_blueprint(home.bp)
+    app.register_blueprint(user_guide.bp)
+    app.register_blueprint(technical_details.bp)
 
     return app
