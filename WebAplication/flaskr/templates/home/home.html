@@ -5,6 +5,7 @@
 {% endblock %}
 
 {% block content %}
+<div class="p-3 mb-2 bg-secondary text-white">
 <p style="text-align: center;"> Welcome to the Smart X-Ray Screening application! Please upload an X-Ray image to begin
   the screening process.
   <br> Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
@@ -24,15 +25,17 @@
 }
 </style>
 
-<input type="file" id="myFileInput" onchange="showFileName(this)"  />
+<input type="file" id="myFileInput" onchange="handleImageUpload(this)"  />
 
 <div class="bd-example m-0 border-0 d-flex justify-content-center">
   <button name="upload" class="btn btn-primary mr-3" type="button" onclick="document.getElementById('myFileInput').click()">Upload</button>
   <button name="submit" class="btn btn-success" type="submit" onclick="myFunction2()">Submit</button>
 </div>
 
+</div>
 <script>
-  function showFileName(input) {
+  function handleImageUpload(input) {
+    
     if (input.files && input.files[0]) {
       document.getElementById('filenameField').value = input.files[0].name;
     }
