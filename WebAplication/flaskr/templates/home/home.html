@@ -25,13 +25,18 @@
 }
 </style>
 
-<input type="file" id="myFileInput" onchange="handleImageUpload(this)"  />
+<input type="file" id="myFileInput" accept="image/*" onchange="handleImageUpload(this)"  />
 
 <div class="bd-example m-0 border-0 d-flex justify-content-center">
   <button name="upload" class="btn btn-primary mr-3" type="button" onclick="document.getElementById('myFileInput').click()">Upload</button>
   <button name="submit" class="btn btn-success" type="submit" onclick="myFunction2()">Submit</button>
 </div>
 
+<div class="text-center mt-3">
+  <img id="imagePreview" class="img-fluid d-none"
+       alt="Preview"
+       style="max-width: 600px; max-height: 400px; object-fit: contain; border-radius: 6px;">
+</div>
 
 <script>
   function handleImageUpload(input) {
@@ -40,6 +45,52 @@
       document.getElementById('filenameField').value = input.files[0].name;
     }
   }
+
+  (function () {
+    const input   = document.getElementById('myFileInput');
+    const field   = document.getElementById('filenameField');
+    const preview = document.getElementById('imagePreview');
+
+    let objectUrl = null;
+
+    function clearPreview() {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+      }
+      preview.src = '';
+      preview.classList.add('d-none');
+    }
+
+    input.addEventListener('change', function () {
+      const file = this.files && this.files[0];
+
+      // update filename field (you already had this)
+      field.value = file ? file.name : '';
+
+      // reset previous preview
+      clearPreview();
+
+      if (!file) return;                        // user canceled
+      if (!file.type.startsWith('image/')) {    // basic validation
+        alert('Please select an image file.');
+        this.value = '';
+        return;
+      }
+
+      objectUrl = URL.createObjectURL(file);
+      preview.src = objectUrl;
+      preview.classList.remove('d-none');
+    });
+
+    // optional: clear preview on form submit
+    const form = input.closest('form');
+    if (form) {
+      form.addEventListener('submit', () => {
+        clearPreview();
+      });
+    }
+  })();
 </script>
 
 {% endblock %}
