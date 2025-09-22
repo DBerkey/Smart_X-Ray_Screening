@@ -12,3 +12,7 @@
     background-color: #04293E !important;
     color: white !important;
 }
+
+ #myFileInput {
+    display:none;
+}
