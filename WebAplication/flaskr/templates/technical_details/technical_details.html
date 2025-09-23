@@ -1,1 +1,35 @@
 {% extends 'base.html' %}
+
+{% block content %}
+    <p style="text-align: center;">
+        This section provides detailed technical information about the Smart X-Ray Screening application, including the underlying algorithms, data processing techniques, and system architecture.
+    </p>
+
+    <h2>System Architecture</h2>
+    <p style="text-align: justify;">
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
+        magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
+        consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+        Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum
+    </p>
+
+    <h2>Data Processing Techniques</h2>
+    <p style="text-align: justify;">
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
+        magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
+        consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+        Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+    </p>
+
+    <h2>Algorithms Used</h2>
+    <p style="text-align: justify;">
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
+        magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
+        consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+        Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+    </p>
+
+    <div class="d-flex justify-content-center align-items-center mt-4">    
+        <button class="btn btn-secondary" style="width: fit-content;" onclick="window.location.href='https://github.com/DBerkey/Smart_X-Ray_Screening'"><svg height="32" width="32"><image href="{{ url_for('static', filename='githubLogo.svg') }}" height="32" width="32" /></svg><p style="padding-left: 5px;">Check it out on GitHub</p></button>
+    </div>
+{% endblock %}
