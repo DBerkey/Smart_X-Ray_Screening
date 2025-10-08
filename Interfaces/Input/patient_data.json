@@ -1,0 +1,16 @@
+{
+    "Patient_ID": 1,
+    "Image_Index": "00000001_001.png",
+    "Age": 58,
+    "Follow_up #": 1,
+    "Sex": "M",
+    "View": "PA",
+    "ImageSize": [
+        2894,
+        2729
+    ],
+    "ImagePixelSpacing": [
+        0,
+        0
+    ]
+}
