@@ -1,0 +1,12 @@
+{
+    "Cardiomegaly": {
+        "Sureness": null,
+        "Box_x": null,
+        "Box_y": null
+    },
+    "Emphysema": {
+        "Sureness": null,
+        "Box_x": null,
+        "Box_y": null
+    }
+}
