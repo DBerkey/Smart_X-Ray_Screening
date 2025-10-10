@@ -1,16 +1,110 @@
 """
-Data Analysis Script - Minimized with comments
+Data Analysis
 """
-
-import pandas as pd
+import cv2
+import os
 import matplotlib.pyplot as plt
+import pandas as pd
 import seaborn as sns
 
+store_path = 'path/to/store/analysis'
+source_path = 'path/to/Data_Entry_2017_v2020.csv'
+image_path = 'path/to/images'
 
-source_path = 'path/to/Data_Entry_2017_v2020.csv'  # Replace with the path to your CSV file
-store_path = 'path/to/store/report'  # Replace with the path to store the report
+#
+#
+#
+# image analysis
+# Iterate over images in current directory
+counter = 0
+df = pd.DataFrame()
+brightest_picture = None
+darkest_picture = None
+all_lines_used_brightest = None
+all_lines_used_darkest = None
+all_coloums_used_brightest = None
+all_coloums_used_darkest = None
+for filename in os.listdir(image_path):
+    if filename.lower().endswith(('.png')):
+        img = cv2.imread(filename)
+        if img is not None:
+            # get infos
+            height, width, channels = img.shape
+            df = pd.concat([df, pd.DataFrame({'filename': [filename], 'height': [
+                           height], 'width': [width], 'channels': [channels]})], ignore_index=True)
+
+        overall_brightness = img.sum()
+        # Check for brightest and darkest images
+        if brightest_picture is None or overall_brightness > brightest_picture[1]:
+            brightest_picture = (img, overall_brightness)
+        if darkest_picture is None or overall_brightness < darkest_picture[1]:
+            darkest_picture = (img, overall_brightness)
+
+        all_lines_used_brightness = 0
+        disqualified = False
+        for line in img:
+            if line.sum() <= 0:
+                disqualified = True
+                break
+            all_lines_used_brightness += line.sum()
+        img_sum = img.sum()
+        if not disqualified and img_sum != brightest_picture[0].sum() and img_sum != darkest_picture[0].sum():
+            if all_lines_used_brightest is None or all_lines_used_brightness > all_lines_used_brightest[1]:
+                all_lines_used_brightest = (img, all_lines_used_brightness)
+            if all_lines_used_darkest is None or all_lines_used_brightness < all_lines_used_darkest[1]:
+                all_lines_used_darkest = (img, all_lines_used_brightness)
+
+        all_coloums_used_brightness = 0
+        disqualified = False
+        for coloum in img.T:
+            if coloum.sum() <= 0:
+                disqualified = True
+                break
+            all_coloums_used_brightness += coloum.sum()
+        img_sum = img.sum()
+        if not disqualified and img_sum != brightest_picture[0].sum() and img_sum != darkest_picture[0].sum() and img_sum != all_lines_used_brightest[0].sum() and img_sum != all_lines_used_darkest[0].sum():
+            if all_coloums_used_brightest is None or all_coloums_used_brightness > all_coloums_used_brightest[1]:
+                all_coloums_used_brightest = (img, all_coloums_used_brightness)
+            if all_coloums_used_darkest is None or all_coloums_used_brightness < all_coloums_used_darkest[1]:
+                all_coloums_used_darkest = (img, all_coloums_used_brightness)
+
+        counter += 1
+        if counter % 100 == 0:
+            print(f"Processed {counter} images so far...")
+print(f"Processed {counter} images.")
+# print height
+plt.figure(figsize=(10, 5))
+plt.plot(df.index, df['height'], label='Height', color='blue')
+plt.title('Image Heights')
+plt.xlabel('Image Index')
+plt.ylabel('Height (pixels)')
+plt.savefig(store_path + '/image_heights.png')
+plt.clf()
+# print width
+plt.plot(df.index, df['width'], label='Width', color='green')
+plt.title('Image Widths')
+plt.xlabel('Image Index')
+plt.ylabel('Width (pixels)')
+plt.savefig(store_path + '/image_widths.png')
+plt.clf()
+# print channels
+plt.plot(df.index, df['channels'], label='Channels', color='red')
+plt.title('Image Channels')
+plt.xlabel('Image Index')
+plt.ylabel('Channels')
+plt.savefig(store_path + 'image_channels.png')
+plt.clf()
+
+cv2.imwrite(store_path + 'image1.png', brightest_picture[0])
+cv2.imwrite(store_path + 'image2.png', darkest_picture[0])
+cv2.imwrite(store_path + 'image3.png', all_lines_used_brightest[0])
+cv2.imwrite(store_path + 'image4.png', all_lines_used_darkest[0])
+cv2.imwrite(store_path + 'image5.png', all_coloums_used_brightest[0])
+cv2.imwrite(store_path + 'all_coloums_used_darkest_image6.png',
+            all_coloums_used_darkest[0])
 
 
+# patient data analysis
 def age_and_gender_distribution(df_input):
     """
     Plot age vs gender distribution as line chart
@@ -71,7 +165,8 @@ def image_variation(df_input):
                      '#1f77b4', '#ff7f0e'], autopct='%1.1f%%', startangle=90)
     plt.title('Image Variation Distribution', fontsize=14), plt.ylabel('')
     plt.tight_layout()
-    plt.savefig(store_path + 'view_position_distribution.png', dpi=300, bbox_inches='tight')
+    plt.savefig(store_path + 'view_position_distribution.png',
+                dpi=300, bbox_inches='tight')
     plt.show()
 
     # Image sizes bar chart (top 15 + others for readability)
@@ -93,7 +188,8 @@ def image_variation(df_input):
     plt.title('Top 15 Image Sizes', fontsize=14)
     plt.xlabel('Image Size', fontsize=12), plt.ylabel('Count', fontsize=12)
     plt.tight_layout()
-    plt.savefig(store_path + 'image_sizes_distribution.png', dpi=300, bbox_inches='tight')
+    plt.savefig(store_path + 'image_sizes_distribution.png',
+                dpi=300, bbox_inches='tight')
     plt.show()
 
     # Pixel spacing distribution
@@ -105,7 +201,8 @@ def image_variation(df_input):
     plt.xlabel('Pixel Spacing', fontsize=12), plt.ylabel('Count', fontsize=12)
     plt.xticks(rotation=45, ha='right', fontsize=9)
     plt.tight_layout()
-    plt.savefig(store_path + 'pixel_spacing_distribution.png', dpi=300, bbox_inches='tight')
+    plt.savefig(store_path + 'pixel_spacing_distribution.png',
+                dpi=300, bbox_inches='tight')
     plt.show()
 
 
@@ -133,7 +230,8 @@ def age_vs_amount_of_diseases(df_input):
     plt.xlabel('Age', fontsize=12), plt.ylabel('Avg Diseases', fontsize=12)
     plt.title('Age vs Disease Count', fontsize=14)
     plt.grid(True, alpha=0.3), plt.tight_layout()
-    plt.savefig(store_path + 'age_vs_disease_count.png', dpi=300, bbox_inches='tight')
+    plt.savefig(store_path + 'age_vs_disease_count.png',
+                dpi=300, bbox_inches='tight')
     plt.show()
 
 
@@ -158,7 +256,6 @@ def disease_co_occurrence(df_input):
     all_diseases = sorted(list(all_diseases))
     print(f"Unique diseases found: {len(all_diseases)}")
 
-
     # Create co-occurrence matrix
     co_matrix = {d1: {d2: 0 for d2 in all_diseases} for d1 in all_diseases}
 
@@ -166,30 +263,33 @@ def disease_co_occurrence(df_input):
     for labels in df_input['Finding Labels'].dropna():
         diseases = labels.split('|')
         if len(diseases) < 2:
-            co_matrix[diseases[0]][diseases[0]] += 1 #count how often a disease occurs alone
+            # count how often a disease occurs alone
+            co_matrix[diseases[0]][diseases[0]] += 1
             continue
         for d1 in diseases:
             for d2 in diseases:
                 if d1 != d2:
                     co_matrix[d1][d2] += 1
-    
-    #normalize
+
+    # normalize
     for d1 in all_diseases:
         total = sum(co_matrix[d1].values())
         if total > 0:
             for d2 in all_diseases:
                 co_matrix[d1][d2] = co_matrix[d1][d2] / total * 100
 
-    #make heatmap and put the percentage values in the boxes
+    # make heatmap and put the percentage values in the boxes
     co_df = pd.DataFrame(co_matrix).T
     plt.figure(figsize=(12, 6))
-    sns.heatmap(co_df, annot=True, fmt=".1f", cmap='Blues', cbar_kws={'label': 'Percentage'})
+    sns.heatmap(co_df, annot=True, fmt=".1f", cmap='Blues',
+                cbar_kws={'label': 'Percentage'})
     plt.title('Disease Co-Occurrence Heatmap (%)', fontsize=16)
     plt.xlabel('Co-Occurring Disease', fontsize=12)
     plt.xticks(rotation=45, ha='right')
     plt.ylabel('Primary Disease', fontsize=12)
     plt.tight_layout()
-    plt.savefig(store_path + 'disease_co_occurrence_heatmap.png', dpi=300, bbox_inches='tight')
+    plt.savefig(store_path + 'disease_co_occurrence_heatmap.png',
+                dpi=300, bbox_inches='tight')
     plt.show()
 
 
@@ -270,58 +370,70 @@ def disease_age_and_sex_analysis(df_input):
     for index, row in df.iterrows():
         if index % 1000 == 0:
             print(f"Processing row {index}...")
-        age = row['Patient Age'] - row['Patient Age'] % 5  # Group ages in 5-year bins
+        # Group ages in 5-year bins
+        age = row['Patient Age'] - row['Patient Age'] % 5
         findings = row['Finding Labels'].strip().split('|')
         for finding in findings:
             new_row = row.copy()
             new_row['Finding Labels'] = finding
             new_row['Patient Age'] = age
-            new_df = pd.concat([new_df, pd.DataFrame([new_row])], ignore_index=True)
-    #group by age and disease
-    age_disease = new_df.groupby(['Patient Age', 'Finding Labels']).size().reset_index(name='count')
-    #plot heatmap for age vs disease
-    age_disease_pivot = age_disease.pivot(index='Finding Labels', columns='Patient Age', values='count').fillna(0)
+            new_df = pd.concat(
+                [new_df, pd.DataFrame([new_row])], ignore_index=True)
+    # group by age and disease
+    age_disease = new_df.groupby(
+        ['Patient Age', 'Finding Labels']).size().reset_index(name='count')
+    # plot heatmap for age vs disease
+    age_disease_pivot = age_disease.pivot(
+        index='Finding Labels', columns='Patient Age', values='count').fillna(0)
     print(age_disease_pivot.T)
     for age in age_disease_pivot.columns:
         new_name = f"{age}, {age_disease_pivot[age].sum()} values"
-        age_disease_pivot[age] = age_disease_pivot[age] / age_disease_pivot[age].sum() * 100
+        age_disease_pivot[age] = age_disease_pivot[age] / \
+            age_disease_pivot[age].sum() * 100
         age_disease_pivot.rename(columns={age: new_name}, inplace=True)
 
     plt.figure(figsize=(12, 12))
-    sns.heatmap(age_disease_pivot.T, cmap='viridis', annot=False, cbar_kws={'label': 'Distribution (%)'})
+    sns.heatmap(age_disease_pivot.T, cmap='viridis', annot=False,
+                cbar_kws={'label': 'Distribution (%)'})
     plt.title('Disease Distribution by Age')
     plt.xlabel('Disease')
     plt.ylabel('Age Group')
     plt.tight_layout()
-    plt.savefig(store_path + 'disease_age_analysis.png', dpi=300, bbox_inches='tight')
+    plt.savefig(store_path + 'disease_age_analysis.png',
+                dpi=300, bbox_inches='tight')
     plt.show()
 
-
-    #plot sex vs disease
-    sex_disease = new_df.groupby(['Patient Sex', 'Finding Labels']).size().reset_index(name='count')
-    sex_disease_pivot = sex_disease.pivot(index='Patient Sex', columns='Finding Labels', values='count').fillna(0)
+    # plot sex vs disease
+    sex_disease = new_df.groupby(
+        ['Patient Sex', 'Finding Labels']).size().reset_index(name='count')
+    sex_disease_pivot = sex_disease.pivot(
+        index='Patient Sex', columns='Finding Labels', values='count').fillna(0)
     print(sex_disease_pivot)
     for sex in sex_disease_pivot.index:
         print(sex)
         new_name = f"{sex}, {sex_disease_pivot.loc[sex].sum()} values"
-        sex_disease_pivot.loc[sex] = sex_disease_pivot.loc[sex] / sex_disease_pivot.loc[sex].sum() * 100
+        sex_disease_pivot.loc[sex] = sex_disease_pivot.loc[sex] / \
+            sex_disease_pivot.loc[sex].sum() * 100
         sex_disease_pivot.rename(index={sex: new_name}, inplace=True)
 
     plt.figure(figsize=(12, 6))
-    sns.heatmap(sex_disease_pivot, cmap='magma', annot=False, cbar_kws={'label': 'Distribution (%)'})
+    sns.heatmap(sex_disease_pivot, cmap='magma', annot=False,
+                cbar_kws={'label': 'Distribution (%)'})
     plt.title('Disease Distribution by sex')
     plt.xlabel('Disease')
     plt.ylabel('Sex')
     plt.tight_layout()
-    plt.savefig(store_path + 'disease_sex_analysis.png', dpi=300, bbox_inches='tight')
+    plt.savefig(store_path + 'disease_sex_analysis.png',
+                dpi=300, bbox_inches='tight')
     plt.show()
+
 
 # Execute analysis
 # Load dataset
 df = pd.read_csv(source_path)
-#disease_age_and_sex_analysis(df)
-#disease_co_occurrence(df)
-#disease_view_position_analysis(df)
-#age_and_gender_distribution(df)
+disease_age_and_sex_analysis(df)
+disease_co_occurrence(df)
+disease_view_position_analysis(df)
+age_and_gender_distribution(df)
 image_variation(df)
-#age_vs_amount_of_diseases(df)
+age_vs_amount_of_diseases(df)
