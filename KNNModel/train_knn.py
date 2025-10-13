@@ -4,16 +4,14 @@ Date: 13-10-2025
 AI use: in this code there was made use of GitHub Copilot to generate the docstrings and debuging
 """
 
-from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import MultiLabelBinarizer, OneHotEncoder, StandardScaler
 import pandas as pd
 import os
 import numpy as np
 from PIL import Image
 
-def split_data_train_test_eval(x, y, test_size=0.195, eval_size=0.005):
+def split_data_train_test_eval(x, y, test_size=0.195, eval_size=0.005): 
     """
     Splits the data into training, testing, and evaluation sets.
     
@@ -113,7 +111,7 @@ if __name__ == "__main__":
     print(f"Evaluation data saved to {eval_csv_path}")
 
     # Build feature matrices
-    img_size = (128, 128) # !Important! still need to get the real size of the images
+    img_size = (2500, 2048) # !Important! still need to get the real size of the images
     X_train = build_feature_matrix(images_folder_path, pd.DataFrame(train[0]), img_size)
     X_test = build_feature_matrix(images_folder_path, pd.DataFrame(test[0]), img_size)
 
@@ -129,6 +127,3 @@ if __name__ == "__main__":
     print(f"Number of testing samples: {X_test.shape[0]}")
     print(f"Feature vector size: {X_train.shape[1]}")
     print(f"Image vector size: {img_size[0]*img_size[1]}")
-
-
-
