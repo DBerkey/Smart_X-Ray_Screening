@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Smart X-Ray Screening{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link boodstrap rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    {% block header %}{% endblock %}
+</head>
+<body>
+    <header class="sticky-top d-flex justify-content-between align-items-center py-3 mb-4 border-bottom" style="background-color: #b5b4b4;"> 
+        <a href="/" class="d-flex align-items-center link-body-emphasis text-decoration-none"> 
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" width="110" height="52" style="padding-left: 5%;">
+        </a> 
+        <ul class="nav nav-pills" style="padding-right: 2%;"> 
+            <li class="nav-item"><a href="/" class="nav-link {{"active" if request.path == "/" else ""}}" aria-current="page">Home</a></li> 
+            <li class="nav-item"><a href="/user_guide" class="nav-link {{"active" if request.path == "/user_guide" else ""}}">User Guide</a></li> 
+            <li class="nav-item"><a href="/technical_details" class="nav-link {{"active" if request.path == "/technical_details" else ""}}">Technical Details</a></li> 
+        </ul> 
+    </header>
+    <main>
+        <div class="container mt-4">
+            {% block content %}
+            {% endblock %}
+        </div>
+        <div class="container-fluid mt-4">
+            <footer class="d-flex justify-content-center align-items-center py-3 border-top" style="background-color: #ffffff;">
+                <p class="mb-0">&copy; 2025 Smart X-Ray Screening. All rights reserved.</p>
+            </footer>
+        </div>
+    </main>
+</body>
+</html>
