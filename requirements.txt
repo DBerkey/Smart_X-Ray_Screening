@@ -25,3 +25,6 @@ scipy>=1.7.0  # Scientific computing
 pytest>=6.0.0  # For running tests
 flake8>=4.0.0  # Code linting
 black>=21.0.0  # Code formatting
+
+# File export
+reportlab>=40.0  # PDF generation
