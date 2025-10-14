@@ -10,15 +10,19 @@ bp = Blueprint("results", __name__, url_prefix="/results")
 
 @bp.route("/", methods=["GET"])
 def show_results():
+    # Retrieve the latest results from the session
     data = session.get("latest_result")
+    # If no data, redirect to home
     if not data:
         return redirect(url_for("home.index"))
 
-    image_filename = data.get("image_filename")
-    image_url = url_for("analyze.get_uploaded", filename=image_filename) if image_filename else None
-
+    area = data.get("image_area")   # "PreProcess" or "Input"
+    name = data.get("image_name")
+    image_url = url_for("analyze.serve_interfaces_image", area=area, filename=name) if (area and name) else None
+    
+    # Extract findings and overall confidence
     findings = data.get("findings", []) or []
-    overall_conf = data.get("overall_conf")  # <-- no fallback computation
+    overall_conf = data.get("overall_conf")  
 
     return render_template(
         "results/results.html",
@@ -33,10 +37,7 @@ def show_results():
 
 @bp.route("/export", methods=["GET"])
 def export_pdf():
-    """
-    Generate a PDF export of the current session results.
-    Requires 'reportlab' (pip install reportlab). If not installed, we redirect back.
-    """
+  
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.units import mm
@@ -52,6 +53,7 @@ def export_pdf():
     generated_at = data.get("generated_at", "")
     patient = data.get("patient", {}) or {}
 
+    # Create PDF in memory
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     width, height = A4
@@ -66,13 +68,13 @@ def export_pdf():
         c.drawString(20 * mm, y, f"Generated: {generated_at}")
         y -= 8 * mm
 
-    # Patient summary line
+    # Patient details
     p_sex = patient.get("sex", "—")
     p_age = patient.get("age", "—")
     c.drawString(20 * mm, y, f"Patient: Sex={p_sex}, Age={p_age}")
     y -= 12 * mm
 
-    # Summary cards
+    # Analysis summary
     c.setFont("Helvetica-Bold", 12)
     c.drawString(20 * mm, y, f"Diseases Found: {len(findings)}")
     y -= 8 * mm
@@ -83,7 +85,7 @@ def export_pdf():
      c.drawString(20*mm, y, "Overall Confidence: No confidence rate available")
     y -= 10*mm
 
-    # Findings list
+    # Findings
     c.setFont("Helvetica-Bold", 12)
     c.drawString(20 * mm, y, "Findings:")
     y -= 7 * mm

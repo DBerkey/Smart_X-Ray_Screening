@@ -27,4 +27,4 @@ flake8>=4.0.0  # Code linting
 black>=21.0.0  # Code formatting
 
 # File export
-reportlab>=40.0  # PDF generation
+reportlab>=4.0  # PDF generation
