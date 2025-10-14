@@ -5,6 +5,7 @@
 {% endblock %}
 
 {% block content %}
+<!-- Welcome text -->
 <p style="text-align: center;"> Welcome to the Smart X-Ray Screening application! Please upload an X-Ray image to begin
   the screening process.
   <br> Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
@@ -13,22 +14,62 @@
   Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum
 </p>
 
-<div style="text-align: center; margin: 20px;">
-  <input type="text" id="filenameField" placeholder="No file selected" readonly
-    style="width: 400px; text-align: center;">
-</div>
+<!-- Form for sending the info uploaded to the backend -->
+<form class="mt-3 d-flex flex-column align-items-center" action="{{ url_for('analyze.analyze_upload') }}" method="post"
+  enctype="multipart/form-data" style="width:100%;">
 
-<input type="file" id="myFileInput" accept="image/*" onchange="handleImageUpload(this)"  />
+  <!-- Field for the name of uploaded file -->
+  <div style="text-align: center; margin: 20px;">
+    <input type="text" id="filenameField" placeholder="No file selected" readonly
+      style="width: 400px; text-align: center;">
+  </div>
 
-<div class="bd-example m-0 border-0 d-flex justify-content-center">
-  <button name="upload" class="btn btn-primary mr-3" type="button" onclick="document.getElementById('myFileInput').click()">Upload</button>
-  <button name="submit" class="btn btn-success" type="submit" onclick="myFunction2()">Submit</button>
-</div>
+  <!-- Hidden field for the actual file upload -->
+  <input type="file" id="myFileInput" name="image" accept="image/*" onchange="handleImageUpload(this)" />
 
+  <!-- Buttons for upload and submit -->
+  <div class="bd-example m-0 border-0 d-flex justify-content-center">
+    <button name="upload" class="btn btn-primary mr-3" type="button"
+      onclick="document.getElementById('myFileInput').click()">Upload</button>
+    <button type="submit" class="btn btn-success">Submit</button>
+  </div>
+  
+  <!-- Checkbox for patient details -->
+  <div class="d-flex justify-content-center align-items-center mt-3" style="width: 400px;">
+    <input class="form-check-input me-2" type="checkbox" value="1" id="togglePatient"
+      style="float: none; position: relative; margin: 0 8px 0 0;">
+    <label class="form-check-label mb-0" for="togglePatient" style="user-select: none;">
+      Specify pacient details (optional)
+    </label>
+  </div>
+
+  <!-- Patient details fields (initially hidden) -->
+  <div id="patientFields" class="mt-3 p-3 border rounded d-none"
+    style="width: 400px; background: #f8f9fa; text-align: center;">
+
+    <div class="d-flex justify-content-between">
+      <div class="form-group" style="flex: 1; margin-right: 10px;">
+        <label for="patientSex" class="font-weight-bold d-block mb-1" style="text-align: center;">Sex</label>
+        <select id="patientSex" name="sex" class="form-control text-center">
+          <option value="" selected disabled>Choose...</option>
+          <option value="Female">Female</option>
+          <option value="Male">Male</option>
+        </select>
+      </div>
+
+      <div class="form-group" style="flex: 1; margin-left: 10px;">
+        <label for="patientAge" class="font-weight-bold d-block mb-1" style="text-align: center;">Age</label>
+        <select id="patientAge" name="age" class="form-control text-center"></select>
+      </div>
+    </div>
+
+  </div>
+</form>
+
+<!-- Image preview area -->
 <div class="text-center mt-3">
-  <img id="imagePreview" class="img-fluid d-none"
-       alt="Preview"
-       style="max-width: 600px; max-height: 400px; object-fit: contain; border-radius: 6px;">
+  <img id="imagePreview" class="img-fluid d-none" alt="Preview"
+    style="max-width: 600px; max-height: 400px; object-fit: contain; border-radius: 6px;">
 </div>
 
 
