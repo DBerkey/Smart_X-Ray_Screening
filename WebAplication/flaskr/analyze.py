@@ -149,7 +149,15 @@ def analyze_upload():
 
     # Parse patient fields
     sex = request.form.get("sex") or None
-    age = _coerce_age(request.form.get("age"))
+    age_raw = request.form.get("age")
+
+    # Enforce required fields
+    if not sex or not age_raw:
+        abort(400, description="Sex and age are required.")
+
+    age = _coerce_age(age_raw)
+    if age is None:
+        abort(400, description="Invalid age selection.")
 
     # Auto-build JSON next to the image in Interfaces/Input
     mime = f.mimetype or mimetypes.guess_type(f.filename)[0]
@@ -164,12 +172,9 @@ def analyze_upload():
         pass
 
     auto_json = {
-        "Patient_ID": None,
         "Image_Index": secure_filename(f.filename),  # original name
         "Age": age,
-        "Follow_up #": None,
         "Sex": sex,
-        "View": None,
         "ImageSize": {"width": width, "height": height} if width and height else None,
         "ImagePixelSpacing": [0, 0],
         "Uploaded_Filename": saved_in_input.name,

@@ -53,27 +53,27 @@ function handleImageUpload(input) {
 })();
 
 document.addEventListener('DOMContentLoaded', function () {
-
   const fileInput = document.getElementById('myFileInput');
   const filenameField = document.getElementById('filenameField');
+  const ageSelect = document.getElementById('patientAge');
+  const imageError = document.getElementById('imageError');
+
+  if (imageError) imageError.classList.add('d-none');
 
   // Clear file input and filename field on page load
-  if (fileInput) fileInput.value = ""; 
-  if (filenameField) filenameField.value = ""; 
-
-  const toggle = document.getElementById('togglePatient');
-  const fields = document.getElementById('patientFields');
-  const ageSelect = document.getElementById('patientAge');
-
-
-  // Reset toggle and fields on page load
-  if (toggle) {
-    toggle.checked = false;
+  if (fileInput) {
+    fileInput.value = "";
+    fileInput.addEventListener('change', () =>{
+        fileInput.setCustomValidity('');
+        if (imageError) imageError.classList.add('d-none');
+  });
   }
-  if (fields) {
-    fields.classList.add('d-none');
-  }
-
+  fileInput.addEventListener('invalid', (e) => {
+      e.preventDefault();                 // prevent default tooltip only, keep blocking submit
+      if (imageError) imageError.classList.remove('d-none');
+    });
+    
+  if (filenameField) filenameField.value = "";
 
   // Populate age dropdown if empty
   if (ageSelect && ageSelect.options.length === 0) {
@@ -102,18 +102,27 @@ document.addEventListener('DOMContentLoaded', function () {
     ageSelect.appendChild(seniorOpt);
   }
 
-  // Toggle patient fields visibility
-  if (toggle && fields) {
-    toggle.addEventListener('change', function () {
-      if (toggle.checked) {
-        fields.classList.remove('d-none');
-      } else {
-        fields.classList.add('d-none');
-        const sex = document.getElementById('patientSex');
-        const age = document.getElementById('patientAge');
-        if (sex) sex.selectedIndex = 0;
-        if (age) age.selectedIndex = 0;
+  const form = document.querySelector('form');
+  
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      // Require an image before submit
+      if (!fileInput || !fileInput.files || !fileInput.files.length) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (fileInput) {
+          fileInput.setCustomValidity('Please choose an image.');
+          fileInput.reportValidity();
+        }
+        if (imageError) imageError.classList.remove('d-none');
+        return;
       }
+      // Bootstrap validation for required selects
+      if (!form.checkValidity()) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      form.classList.add('was-validated');
     });
   }
 });

@@ -4,6 +4,8 @@
 <script src="{{ url_for('static', filename='script.js') }}" defer></script>
 {% endblock %}
 
+<!-- Make the petient details fields mandatory, not optional -->
+
 {% block content %}
 <!-- Welcome text -->
 <p style="text-align: center;"> Welcome to the Smart X-Ray Screening application! Please upload an X-Ray image to begin
@@ -24,8 +26,14 @@
       style="width: 400px; text-align: center;">
   </div>
 
+  <div id="imageError"
+     class="text-danger text-center small d-none mt-2 mb-3"
+     aria-live="polite">
+  Please choose an image before submitting.
+</div>
+
   <!-- Hidden field for the actual file upload -->
-  <input type="file" id="myFileInput" name="image" accept="image/*" onchange="handleImageUpload(this)" />
+  <input type="file" id="myFileInput" name="image" accept="image/*" onchange="handleImageUpload(this)" required />
 
   <!-- Buttons for upload and submit -->
   <div class="bd-example m-0 border-0 d-flex justify-content-center">
@@ -34,32 +42,25 @@
     <button type="submit" class="btn btn-success">Submit</button>
   </div>
   
-  <!-- Checkbox for patient details -->
-  <div class="d-flex justify-content-center align-items-center mt-3" style="width: 400px;">
-    <input class="form-check-input me-2" type="checkbox" value="1" id="togglePatient"
-      style="float: none; position: relative; margin: 0 8px 0 0;">
-    <label class="form-check-label mb-0" for="togglePatient" style="user-select: none;">
-      Specify pacient details (optional)
-    </label>
-  </div>
 
   <!-- Patient details fields (initially hidden) -->
-  <div id="patientFields" class="mt-3 p-3 border rounded d-none"
+  <div id="patientFields" class="mt-3 p-3 border rounded "
     style="width: 400px; background: #f8f9fa; text-align: center;">
 
     <div class="d-flex justify-content-between">
       <div class="form-group" style="flex: 1; margin-right: 10px;">
         <label for="patientSex" class="font-weight-bold d-block mb-1" style="text-align: center;">Sex</label>
-        <select id="patientSex" name="sex" class="form-control text-center">
+        <select id="patientSex" name="sex" class="form-control text-center" required>
           <option value="" selected disabled>Choose...</option>
           <option value="Female">Female</option>
           <option value="Male">Male</option>
         </select>
+         <div class="invalid-feedback">Please select the patient's sex.</div>
       </div>
 
       <div class="form-group" style="flex: 1; margin-left: 10px;">
         <label for="patientAge" class="font-weight-bold d-block mb-1" style="text-align: center;">Age</label>
-        <select id="patientAge" name="age" class="form-control text-center"></select>
+        <select id="patientAge" name="age" class="form-control text-center" required></select>
       </div>
     </div>
 
