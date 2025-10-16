@@ -8,9 +8,9 @@ import numpy as np
 import os
 import shutil
 
-input_directory = 'path/to/images'
-output_directory = 'path/to/output'
-input_of_single_image = 'path/to/image' #for testing single image processing with process visualization
+input_directory = 'images'
+output_directory = 'preprocessed'
+input_of_single_image = 'images/00000372_008.png' #for testing single image processing with process visualization
 
 
 def soft_tissue_contrast_enhancement(image):
@@ -182,6 +182,10 @@ def enhance_soft_tissue_visibility(image):
     #Apply soft tissue edge enhancement
     edge_enhanced = soft_tissue_edge_enhancement(workbench[-1])
     workbench.append(edge_enhanced)
+
+    #apply gausian blur to reduce noise
+    blurred = cv2.GaussianBlur(workbench[-1], (5, 5), 0)
+    workbench.append(blurred)
     
     #Final brightness optimization
     final_enhanced = brightness_range_maximisation(workbench[-1])
@@ -290,4 +294,4 @@ def preprocess_batch_soft_tissue(input_dir, output_dir, output_size=(2500, 2048)
 preprocess_batch_soft_tissue(input_directory, output_directory)
 
 #uncommment to test single image processing with process visualization
-#preprocess_xray_soft_tissue(input_of_single_image, show_process=True)
+preprocess_xray_soft_tissue(input_of_single_image, show_process=True)
