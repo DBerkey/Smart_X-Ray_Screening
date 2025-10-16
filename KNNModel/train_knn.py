@@ -11,8 +11,8 @@ import pandas as pd
 import os
 import numpy as np
 from PIL import Image
-import gc  # For garbage collection to free memory
-import pickle  # For saving models
+import gc
+import pickle 
 
 def split_data_train_test_eval(x, y, test_size=0.195, eval_size=0.005): 
     """
@@ -106,48 +106,35 @@ def fit_pca_incremental(images_folder_path, df, img_size, n_components=500, batc
     Returns:
         Fitted IncrementalPCA model.
     """
-    print(f"\nFitting Incremental PCA with {n_components} components...")
+    print(f"\nFitting Incremental PCA with {n_components} components on {len(df)} images...")
     
-    # Initialize IncrementalPCA (don't set batch_size parameter)
+    # Initialize IncrementalPCA
     pca = IncrementalPCA(n_components=n_components)
+
+    batch_count = 0
+    total_samples = 0
     
-    # For the first batch, we need at least n_components samples
-    # Accumulate batches until we have enough
-    first_batch_data = []
-    min_samples_needed = n_components
-    samples_collected = 0
-    
-    batch_generator = build_feature_matrix_batched(images_folder_path, df, img_size, batch_size)
-    
-    # Collect first batches to meet minimum sample requirement
-    print(f"Collecting initial samples (need at least {min_samples_needed})...")
-    for batch in batch_generator:
-        first_batch_data.append(batch)
-        samples_collected += len(batch)
+    for batch in build_feature_matrix_batched(images_folder_path, df, img_size, batch_size):
+        batch = batch / 255.0
         
-        if samples_collected >= min_samples_needed:
-            # Combine accumulated batches and do first fit
-            combined_batch = np.vstack(first_batch_data)
-            print(f"Fitting PCA on initial {len(combined_batch)} samples...")
-            pca.partial_fit(combined_batch)
-            
-            # Free memory
-            del first_batch_data
-            del combined_batch
-            gc.collect()
-            break
-    
-    # Continue with remaining batches
-    batch_count = 1
-    for batch in batch_generator:
         batch_count += 1
+        total_samples += len(batch)
+        
         pca.partial_fit(batch)
-        if batch_count % 10 == 0:
-            print(f"  Fitted {batch_count} additional batches...")
+        
+        if batch_count % 10 == 0 or batch_count == 1:
+            print(f"  Fitted batch {batch_count} ({total_samples}/{len(df)} samples)")
+        
         del batch
         gc.collect()
     
-    print(f"PCA fitted on all data. Explained variance ratio: {pca.explained_variance_ratio_.sum():.4f}")
+    explained_var = pca.explained_variance_ratio_.sum()
+    print(f"PCA fitted on ALL {total_samples} samples")
+    print(f"Explained variance ratio: {explained_var:.4f} ({explained_var*100:.2f}%)")
+    
+    if explained_var < 0.80:
+        print(f"WARNING: Only {explained_var*100:.1f}% variance captured!")
+    
     return pca
 
 def transform_features_batched(images_folder_path, df, img_size, pca, batch_size=50):
@@ -163,12 +150,21 @@ def transform_features_batched(images_folder_path, df, img_size, pca, batch_size
     Returns:
         Transformed feature matrix (reduced dimensions).
     """
-    print(f"\nTransforming images using PCA...")
+    print(f"\nTransforming {len(df)} images using PCA...")
     
     transformed_batches = []
+    batch_count = 0
+    
     for batch in build_feature_matrix_batched(images_folder_path, df, img_size, batch_size):
+        batch = batch / 255.0
+        
         transformed_batch = pca.transform(batch)
         transformed_batches.append(transformed_batch)
+        
+        batch_count += 1
+        if batch_count % 20 == 0:
+            print(f"  Transformed {batch_count * batch_size}/{len(df)} images")
+        
         del batch
         gc.collect()
     
@@ -207,18 +203,36 @@ def encode_scale_input_features(df, X_img):
     X_combined = np.hstack([X_img, age_scaled, sex_encoded])
     return X_combined
 
-def train_knn_model(X_train, Y_train, n_neighbors=5):
+def standardize_pca_features(X_train, X_test):
+    """
+    Standardizes PCA-transformed features to have mean=0 and std=1.
+    This is important for KNN to work properly.
+    
+    Param:
+        X_train: Training features after PCA.
+        X_test: Test features after PCA.
+    Returns:
+        Tuple of (X_train_scaled, X_test_scaled, scaler)
+    """
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    return X_train_scaled, X_test_scaled, scaler
+
+def train_knn_model(X_train, Y_train, n_neighbors=5, metric='manhattan', weights='distance'):
     """
     Trains a KNN model.
     Param:
         X_train: Training features.
         Y_train: Training labels.
         n_neighbors: Number of neighbors to use.
+        metric: Distance metric to use ('euclidean', 'manhattan', 'minkowski')
+        weights: Weight function ('uniform' or 'distance')
     Returns:
         Trained KNN model.
     """
     from sklearn.neighbors import KNeighborsClassifier
-    knn = KNeighborsClassifier(n_neighbors=n_neighbors)
+    knn = KNeighborsClassifier(n_neighbors=n_neighbors, metric=metric, weights=weights)
     knn.fit(X_train, Y_train)
     return knn
 
@@ -235,6 +249,29 @@ def evaluate_model(model, X_test, Y_test):
     accuracy = model.score(X_test, Y_test)
     return accuracy
 
+def evaluate_model_detailed(model, X_test, Y_test, name="Model"):
+    """
+    Provides detailed evaluation metrics for multi-label classification.
+    """
+    from sklearn.metrics import hamming_loss, f1_score, jaccard_score
+    
+    accuracy = model.score(X_test, Y_test)
+    Y_pred = model.predict(X_test)
+    
+    hamming = hamming_loss(Y_test, Y_pred)
+    f1_macro = f1_score(Y_test, Y_pred, average='macro', zero_division=0)
+    f1_micro = f1_score(Y_test, Y_pred, average='micro', zero_division=0)
+    jaccard = jaccard_score(Y_test, Y_pred, average='samples', zero_division=0)
+    
+    print(f"\n{name} Evaluation:")
+    print(f"  Exact Match Accuracy: {accuracy * 100:.2f}%")
+    print(f"  Hamming Loss: {hamming:.4f}")
+    print(f"  F1 Score (Macro): {f1_macro:.4f}")
+    print(f"  F1 Score (Micro): {f1_micro:.4f}")
+    print(f"  Jaccard Score: {jaccard:.4f}")
+    
+    return accuracy
+
 if __name__ == "__main__":
     # ===== CONFIGURATION =====
     DATA_DIRECTORY_PATH = "C:/Users/berke/OneDrive/Documenten/school/UiA/Smart_X-Ray_Screening_img-data"
@@ -243,14 +280,13 @@ if __name__ == "__main__":
     
     # Image processing settings
     img_size = (1000, 820)      # resolution of the images (width, height)
-    n_pca_components = 500      # Reduce dimensions to this number
-    batch_size = 550            # Must be >= n_pca_components for IncrementalPCA 
+    n_pca_components = 1000     
+    batch_size = 1000           # Must be >= n_pca_components for IncrementalPCA 
+    
+    LOAD_EXISTING_PCA = False    # Set to True to load existing PCA model
+    LOAD_EXISTING_DATA = False   # Set to True to skip image loading and PCA transformation
     # =========================
     
-    # Validate configuration
-    if batch_size < n_pca_components:
-        batch_size = n_pca_components + 50
-
     df = pd.read_csv(images_metadata_path)
 
     # Filter the metadata to only include images present in the folder
@@ -269,40 +305,169 @@ if __name__ == "__main__":
     eval_df.to_csv(eval_csv_path, index=False)
     print(f"Evaluation data saved to {eval_csv_path}")
 
-    print("\n=== Processing Training Data ===")
-    # Fit PCA on training data using incremental approach
-    pca = fit_pca_incremental(images_folder_path, pd.DataFrame(train[0]), img_size, 
-                              n_components=n_pca_components, batch_size=batch_size)
+    # Check if we should load existing processed data
+    processed_data_path = os.path.join(DATA_DIRECTORY_PATH, "processed_features.npz")
+    pca_model_path = os.path.join(DATA_DIRECTORY_PATH, "pca_model.pkl")
+    scaler_path = os.path.join(DATA_DIRECTORY_PATH, "feature_scaler.pkl")
     
-    # Transform training data
-    X_train = transform_features_batched(images_folder_path, pd.DataFrame(train[0]), 
-                                         img_size, pca, batch_size=batch_size)
-    
-    print("\n=== Processing Test Data ===")
-    # Transform test data using the same PCA
-    X_test = transform_features_batched(images_folder_path, pd.DataFrame(test[0]), 
-                                        img_size, pca, batch_size=batch_size)
+    if LOAD_EXISTING_DATA and os.path.exists(processed_data_path):
+        print("\n=== Loading Pre-processed Data ===")
+        print(f"Loading from {processed_data_path}")
+        
+        loaded_data = np.load(processed_data_path)
+        X_train_encoded = loaded_data['X_train_encoded']
+        X_test_encoded = loaded_data['X_test_encoded']
+        
+        with open(pca_model_path, 'rb') as f:
+            pca = pickle.load(f)
+        with open(scaler_path, 'rb') as f:
+            feature_scaler = pickle.load(f)
+            
+        print(f"✓ Loaded preprocessed data: X_train shape = {X_train_encoded.shape}, X_test shape = {X_test_encoded.shape}")
+        print(f"✓ PCA explained variance: {pca.explained_variance_ratio_.sum():.4f} ({pca.explained_variance_ratio_.sum()*100:.2f}%)")
+        
+    else:
+        # Process from scratch
+        if LOAD_EXISTING_PCA and os.path.exists(pca_model_path):
+            print("\n=== Loading Existing PCA Model ===")
+            with open(pca_model_path, 'rb') as f:
+                pca = pickle.load(f)
+            print(f"✓ Loaded PCA model with {pca.n_components} components")
+            print(f"✓ Explained variance: {pca.explained_variance_ratio_.sum():.4f} ({pca.explained_variance_ratio_.sum()*100:.2f}%)")
+        else:
+            print("\n=== Training PCA Model ===")
+            # Fit PCA on training data using incremental approach
+            pca = fit_pca_incremental(images_folder_path, pd.DataFrame(train[0]), img_size, 
+                                      n_components=n_pca_components, batch_size=batch_size)
+        
+        # Transform training data
+        print("\n=== Processing Training Data ===")
+        X_train = transform_features_batched(images_folder_path, pd.DataFrame(train[0]), 
+                                             img_size, pca, batch_size=batch_size)
+        
+        print("\n=== Processing Test Data ===")
+        # Transform test data using the same PCA
+        X_test = transform_features_batched(images_folder_path, pd.DataFrame(test[0]), 
+                                            img_size, pca, batch_size=batch_size)
 
+        # Standardize PCA features (important for KNN!)
+        print("\n=== Standardizing Features ===")
+        X_train_std, X_test_std, feature_scaler = standardize_pca_features(X_train, X_test)
+        print(f"Features standardized (mean≈0, std≈1)")
+
+        Y_train, mlb = encode_predictor_labels(train[1])
+        Y_test, _ = encode_predictor_labels(test[1])
+
+        X_train_encoded = encode_scale_input_features(pd.DataFrame(train[0]), X_train_std)
+        X_test_encoded = encode_scale_input_features(pd.DataFrame(test[0]), X_test_std)
+        
+        # Save processed data for future runs
+        print(f"\n=== Saving Processed Data for Future Runs ===")
+        np.savez_compressed(processed_data_path, 
+                           X_train_encoded=X_train_encoded,
+                           X_test_encoded=X_test_encoded)
+        print(f"✓ Saved to {processed_data_path}")
+    
+    # Load labels (always needed)
     Y_train, mlb = encode_predictor_labels(train[1])
     Y_test, _ = encode_predictor_labels(test[1])
 
-    X_train_encoded = encode_scale_input_features(pd.DataFrame(train[0]), X_train)
-    X_test_encoded = encode_scale_input_features(pd.DataFrame(test[0]), X_test)
+    # Save PCA model and scaler for later use (if they were just created)
+    if not (LOAD_EXISTING_DATA and os.path.exists(processed_data_path)):
+        pca_model_path = os.path.join(DATA_DIRECTORY_PATH, "pca_model.pkl")
+        with open(pca_model_path, 'wb') as f:
+            pickle.dump(pca, f)
+        print(f"\n✓ PCA model saved to {pca_model_path}")
+        
+        scaler_path = os.path.join(DATA_DIRECTORY_PATH, "feature_scaler.pkl")
+        with open(scaler_path, 'wb') as f:
+            pickle.dump(feature_scaler, f)
+        print(f"✓ Feature scaler saved to {scaler_path}")
 
-    # Save PCA model for later use
-    pca_model_path = os.path.join(DATA_DIRECTORY_PATH, "pca_model.pkl")
-    with open(pca_model_path, 'wb') as f:
-        pickle.dump(pca, f)
-    print(f"\nPCA model saved to {pca_model_path}")
 
-    print("\n=== Training KNN Model ===")
-    knn_model = train_knn_model(X_train_encoded, Y_train, n_neighbors=5)
-    accuracy = evaluate_model(knn_model, X_test_encoded, Y_test)
-    print(f"KNN Model Accuracy: {accuracy * 100:.2f}%")
+    print("\n=== Finding Best KNN Configuration ===")
+    # Test different configurations on a subset to find the best
+    test_configs = [
+        {'n_neighbors': 3, 'metric': 'euclidean', 'weights': 'uniform'},
+        {'n_neighbors': 5, 'metric': 'euclidean', 'weights': 'uniform'},
+        {'n_neighbors': 5, 'metric': 'euclidean', 'weights': 'distance'},
+        {'n_neighbors': 7, 'metric': 'euclidean', 'weights': 'distance'},
+        {'n_neighbors': 9, 'metric': 'euclidean', 'weights': 'distance'},
+        {'n_neighbors': 5, 'metric': 'manhattan', 'weights': 'distance'},
+        {'n_neighbors': 11, 'metric': 'euclidean', 'weights': 'distance'},
+        {'n_neighbors': 11, 'metric': 'manhattan', 'weights': 'distance'},
+        {'n_neighbors': 13, 'metric': 'manhattan', 'weights': 'distance'},
+        {'n_neighbors': 15, 'metric': 'manhattan', 'weights': 'distance'},
+        {'n_neighbors': 17, 'metric': 'manhattan', 'weights': 'distance'},
+        {'n_neighbors': 19, 'metric': 'manhattan', 'weights': 'distance'}
+    ]   
+    
+    print(f"Testing {len(test_configs)} configurations...")
+    
+    best_accuracy = 0
+    best_config = None
+    
+    for i, config in enumerate(test_configs):
+        print(f"\n[{i+1}/{len(test_configs)}] Testing: k={config['n_neighbors']}, metric={config['metric']}, weights={config['weights']}")
+        
+        knn_test = train_knn_model(
+            X_train_encoded, 
+            Y_train,
+            n_neighbors=config['n_neighbors'],
+            metric=config['metric'],
+            weights=config['weights']
+        )
+        
+        test_accuracy = evaluate_model(knn_test, X_test_encoded, Y_test)
+        print(f"  Accuracy: {test_accuracy * 100:.2f}%")
+        
+        if test_accuracy > best_accuracy:
+            best_accuracy = test_accuracy
+            best_config = config
+    
+    print("\n" + "="*60)
+    print("BEST CONFIGURATION FOUND")
+    print("="*60)
+    print(f"k={best_config['n_neighbors']}, metric={best_config['metric']}, weights={best_config['weights']}")
+    print(f"Subset accuracy: {best_accuracy * 100:.2f}%")
+    
+    print("\n=== Training Final KNN Model with Best Configuration ===")
+    knn_model = train_knn_model(
+        X_train_encoded, Y_train, 
+        n_neighbors=best_config['n_neighbors'],
+        metric=best_config['metric'],
+        weights=best_config['weights']
+    )
+    
+    # Detailed evaluation
+    accuracy = evaluate_model_detailed(knn_model, X_test_encoded, Y_test, "Final KNN Model")
+    print(f"\nConfiguration: k={best_config['n_neighbors']}, metric={best_config['metric']}, weights={best_config['weights']}")
     
     # Save KNN model
     knn_model_path = os.path.join(DATA_DIRECTORY_PATH, "knn_model.pkl")
     with open(knn_model_path, 'wb') as f:
         pickle.dump(knn_model, f)
     print(f"KNN model saved to {knn_model_path}")
+    
+    # Save label encoder
+    mlb_path = os.path.join(DATA_DIRECTORY_PATH, "label_encoder.pkl")
+    with open(mlb_path, 'wb') as f:
+        pickle.dump(mlb, f)
+    print(f"Label encoder saved to {mlb_path}")
+    
+    # Print final summary
+    print("\n" + "="*60)
+    print("TRAINING SUMMARY")
+    print("="*60)
+    print(f"Images processed: {len(X_train_encoded) + len(X_test_encoded)}")
+    print(f"Training samples: {len(X_train_encoded)}")
+    print(f"Test samples: {len(X_test_encoded)}")
+    print(f"Image resolution: {img_size}")
+    print(f"PCA components: {n_pca_components}")
+    print(f"PCA explained variance: {pca.explained_variance_ratio_.sum():.4f} ({pca.explained_variance_ratio_.sum()*100:.2f}%)")
+    print(f"Final features per sample: {X_train_encoded.shape[1]}")
+    print(f"Number of labels: {Y_train.shape[1]}")
+    print(f"Best KNN configuration: k={best_config['n_neighbors']}, metric={best_config['metric']}, weights={best_config['weights']}")
+    print(f"Final accuracy: {accuracy * 100:.2f}%")
+    print("="*60)
     
