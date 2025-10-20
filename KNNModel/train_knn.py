@@ -7,6 +7,7 @@ AI use: in this code there was made use of GitHub Copilot to generate the docstr
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer, OneHotEncoder, StandardScaler
 from sklearn.decomposition import IncrementalPCA
+from sklearn.metrics import accuracy_score, mean_squared_error, hamming_loss, f1_score, jaccard_score
 import pandas as pd
 import os
 import numpy as np
@@ -252,9 +253,7 @@ def evaluate_model(model, X_test, Y_test):
 def evaluate_model_detailed(model, X_test, Y_test, name="Model"):
     """
     Provides detailed evaluation metrics for multi-label classification.
-    """
-    from sklearn.metrics import hamming_loss, f1_score, jaccard_score
-    
+    """    
     accuracy = model.score(X_test, Y_test)
     Y_pred = model.predict(X_test)
     
@@ -262,6 +261,8 @@ def evaluate_model_detailed(model, X_test, Y_test, name="Model"):
     f1_macro = f1_score(Y_test, Y_pred, average='macro', zero_division=0)
     f1_micro = f1_score(Y_test, Y_pred, average='micro', zero_division=0)
     jaccard = jaccard_score(Y_test, Y_pred, average='samples', zero_division=0)
+    mse = mean_squared_error(Y_test, Y_pred)
+
     
     print(f"\n{name} Evaluation:")
     print(f"  Exact Match Accuracy: {accuracy * 100:.2f}%")
@@ -270,7 +271,7 @@ def evaluate_model_detailed(model, X_test, Y_test, name="Model"):
     print(f"  F1 Score (Micro): {f1_micro:.4f}")
     print(f"  Jaccard Score: {jaccard:.4f}")
     
-    return accuracy
+    return accuracy, mse, hamming, f1_macro, f1_micro, jaccard
 
 if __name__ == "__main__":
     # ===== CONFIGURATION =====
@@ -283,8 +284,8 @@ if __name__ == "__main__":
     n_pca_components = 1000     
     batch_size = 1000           # Must be >= n_pca_components for IncrementalPCA 
     
-    LOAD_EXISTING_PCA = False    # Set to True to load existing PCA model
-    LOAD_EXISTING_DATA = False   # Set to True to skip image loading and PCA transformation
+    LOAD_EXISTING_PCA = True    # Set to True to load existing PCA model
+    LOAD_EXISTING_DATA = True   # Set to True to skip image loading and PCA transformation
     # =========================
     
     df = pd.read_csv(images_metadata_path)
@@ -310,7 +311,7 @@ if __name__ == "__main__":
     pca_model_path = os.path.join(DATA_DIRECTORY_PATH, "pca_model.pkl")
     scaler_path = os.path.join(DATA_DIRECTORY_PATH, "feature_scaler.pkl")
     
-    if LOAD_EXISTING_DATA and os.path.exists(processed_data_path):
+    if LOAD_EXISTING_DATA and os.path.exists(processed_data_path) and os.path.exists(pca_model_path) and os.path.exists(scaler_path):
         print("\n=== Loading Pre-processed Data ===")
         print(f"Loading from {processed_data_path}")
         
@@ -399,7 +400,18 @@ if __name__ == "__main__":
         {'n_neighbors': 13, 'metric': 'manhattan', 'weights': 'distance'},
         {'n_neighbors': 15, 'metric': 'manhattan', 'weights': 'distance'},
         {'n_neighbors': 17, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 19, 'metric': 'manhattan', 'weights': 'distance'}
+        {'n_neighbors': 19, 'metric': 'manhattan', 'weights': 'distance'},
+        {'n_neighbors': 21, 'metric': 'manhattan', 'weights': 'distance'},
+        {'n_neighbors': 23, 'metric': 'manhattan', 'weights': 'distance'},
+        {'n_neighbors': 25, 'metric': 'manhattan', 'weights': 'distance'},
+        {'n_neighbors': 27, 'metric': 'manhattan', 'weights': 'distance'},
+        {'n_neighbors': 29, 'metric': 'manhattan', 'weights': 'distance'},
+        {'n_neighbors': 19, 'metric': 'minkowski', 'weights': 'distance'},
+        {'n_neighbors': 21, 'metric': 'minkowski', 'weights': 'distance'},
+        {'n_neighbors': 23, 'metric': 'minkowski', 'weights': 'distance'},
+        {'n_neighbors': 25, 'metric': 'minkowski', 'weights': 'distance'},
+        {'n_neighbors': 27, 'metric': 'minkowski', 'weights': 'distance'},
+        {'n_neighbors': 29, 'metric': 'minkowski', 'weights': 'distance'}
     ]   
     
     print(f"Testing {len(test_configs)} configurations...")
@@ -440,9 +452,15 @@ if __name__ == "__main__":
     )
     
     # Detailed evaluation
-    accuracy = evaluate_model_detailed(knn_model, X_test_encoded, Y_test, "Final KNN Model")
+    accuracy, mse, hamming, f1_macro, f1_micro, jaccard = evaluate_model_detailed(knn_model, X_test_encoded, Y_test, "Final KNN Model")
     print(f"\nConfiguration: k={best_config['n_neighbors']}, metric={best_config['metric']}, weights={best_config['weights']}")
-    
+    print(f"Accuracy: {accuracy * 100:.2f}%")
+    print(f"Mean Squared Error: {mse:.4f}")
+    print(f"Hamming Loss: {hamming:.4f}")
+    print(f"F1 Macro: {f1_macro:.4f}")
+    print(f"F1 Micro: {f1_micro:.4f}")
+    print(f"Jaccard Score: {jaccard:.4f}")
+
     # Save KNN model
     knn_model_path = os.path.join(DATA_DIRECTORY_PATH, "knn_model.pkl")
     with open(knn_model_path, 'wb') as f:
