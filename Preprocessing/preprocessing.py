@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 import os
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 
 input_directory = 'images'
 output_directory = 'preprocessed'
@@ -291,7 +292,54 @@ def preprocess_batch_soft_tissue(input_dir, output_dir, output_size=(2500, 2048)
     print(f"Errors encountered: {error_count} images")
 
 
-preprocess_batch_soft_tissue(input_directory, output_directory)
+def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=4, output_size=(2500, 2048)):
+    """
+    Preprocess a list of image filepaths using multiple threads.
+    
+    Args:
+        filepaths (list): List of paths to input images
+        output_dir (str): Path to the directory where processed images will be saved
+        num_threads (int): Number of threads to use for parallel processing
+        output_size (tuple): Target size for the output images (width, height)
+    
+    Returns:
+        tuple: (successful_count, error_count)
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    
+    def process_single_file(filepath):
+        try:
+            filename = os.path.basename(filepath)
+            output_path = os.path.join(output_dir, f"soft_tissue_{filename}")
+            processed_image = preprocess_xray_soft_tissue(filepath, output_size)
+            cv2.imwrite(output_path, processed_image)
+            return True, filepath
+        except Exception as e:
+            return False, f"{filepath}: {str(e)}"
+    
+    results = []
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        results = list(executor.map(process_single_file, filepaths))
+    
+    successful = sum(1 for success, _ in results if success)
+    errors = sum(1 for success, _ in results if not success)
+    
+    print(f"\nThreaded processing complete:")
+    print(f"Successfully processed: {successful} images")
+    print(f"Errors encountered: {errors} images")
+    
+    return successful, errors
+
+
+#images = [
+#    'images/00000372_008.png',
+#    'images/00000001_000.png',
+#    'images/00000032_005.png'
+#]
+#output_directory = 'preprocessed_threaded'
+#preprocess_filepaths_threaded(images, output_directory,3,(2500, 2048))
+
+#preprocess_batch_soft_tissue(input_directory, output_directory)
 
 #uncommment to test single image processing with process visualization
-preprocess_xray_soft_tissue(input_of_single_image, show_process=True)
+#preprocess_xray_soft_tissue(input_of_single_image, show_process=True)
