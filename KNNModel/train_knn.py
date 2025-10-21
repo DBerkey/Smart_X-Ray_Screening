@@ -374,44 +374,34 @@ if __name__ == "__main__":
     Y_test, _ = encode_predictor_labels(test[1])
 
     # Save PCA model and scaler for later use (if they were just created)
-    if not (LOAD_EXISTING_DATA and os.path.exists(processed_data_path)):
-        pca_model_path = os.path.join(DATA_DIRECTORY_PATH, "pca_model.pkl")
+    # Save PCA model if it was just trained (not loaded)
+    if not (LOAD_EXISTING_PCA and os.path.exists(pca_model_path)):
+        print(f"\n✓ Saving PCA model to {pca_model_path}")
         with open(pca_model_path, 'wb') as f:
             pickle.dump(pca, f)
-        print(f"\n✓ PCA model saved to {pca_model_path}")
-        
-        scaler_path = os.path.join(DATA_DIRECTORY_PATH, "feature_scaler.pkl")
+    
+    # Save scaler and processed data if they were just created (not loaded)
+    if not (LOAD_EXISTING_DATA and os.path.exists(processed_data_path)):
+        print(f"✓ Saving feature scaler to {scaler_path}")
         with open(scaler_path, 'wb') as f:
             pickle.dump(feature_scaler, f)
-        print(f"✓ Feature scaler saved to {scaler_path}")
 
 
     print("\n=== Finding Best KNN Configuration ===")
     # Test different configurations on a subset to find the best
     test_configs = [
-        {'n_neighbors': 3, 'metric': 'euclidean', 'weights': 'uniform'},
-        {'n_neighbors': 5, 'metric': 'euclidean', 'weights': 'uniform'},
-        {'n_neighbors': 5, 'metric': 'euclidean', 'weights': 'distance'},
-        {'n_neighbors': 7, 'metric': 'euclidean', 'weights': 'distance'},
-        {'n_neighbors': 9, 'metric': 'euclidean', 'weights': 'distance'},
-        {'n_neighbors': 5, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 11, 'metric': 'euclidean', 'weights': 'distance'},
-        {'n_neighbors': 11, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 13, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 15, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 17, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 19, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 21, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 23, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 25, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 27, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 29, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 19, 'metric': 'minkowski', 'weights': 'distance'},
-        {'n_neighbors': 21, 'metric': 'minkowski', 'weights': 'distance'},
-        {'n_neighbors': 23, 'metric': 'minkowski', 'weights': 'distance'},
-        {'n_neighbors': 25, 'metric': 'minkowski', 'weights': 'distance'},
-        {'n_neighbors': 27, 'metric': 'minkowski', 'weights': 'distance'},
-        {'n_neighbors': 29, 'metric': 'minkowski', 'weights': 'distance'}
+        {'n_neighbors': 200, 'metric': 'euclidean', 'weights': 'distance'},
+        {'n_neighbors': 200, 'metric': 'manhattan', 'weights': 'distance'},
+        {'n_neighbors': 200, 'metric': 'minkowski', 'weights': 'distance'},
+        {'n_neighbors': 1000, 'metric': 'euclidean', 'weights': 'distance'},
+        {'n_neighbors': 1000, 'metric': 'manhattan', 'weights': 'distance'},
+        {'n_neighbors': 1000, 'metric': 'minkowski', 'weights': 'distance'},
+        {'n_neighbors': 1500, 'metric': 'euclidean', 'weights': 'distance'},
+        {'n_neighbors': 1500, 'metric': 'manhattan', 'weights': 'distance'},
+        {'n_neighbors': 1500, 'metric': 'minkowski', 'weights': 'distance'},
+        {'n_neighbors': 2000, 'metric': 'euclidean', 'weights': 'distance'},
+        {'n_neighbors': 2000, 'metric': 'manhattan', 'weights': 'distance'},
+        {'n_neighbors': 2000, 'metric': 'minkowski', 'weights': 'distance'}w
     ]   
     
     print(f"Testing {len(test_configs)} configurations...")
