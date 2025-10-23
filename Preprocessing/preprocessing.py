@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 input_directory = 'images'
 output_directory = 'preprocessed'
-input_of_single_image = 'images/00000372_008.png' #for testing single image processing with process visualization
+NUM_THREADS = 4
 
 
 def soft_tissue_contrast_enhancement(image):
@@ -251,48 +251,31 @@ def preprocess_xray_soft_tissue(image_path, output_size=(2500, 2048), show_proce
     return workbench[-1]
 
 
-def preprocess_batch_soft_tissue(input_dir, output_dir, output_size=(2500, 2048)):
+def preprocess_batch_soft_tissue(input_dir, output_dir, output_size=(2500, 2048), num_threads=NUM_THREADS):
     """
     Preprocess all X-ray images in a directory with soft tissue optimization and save them to an output directory.
+    Uses multithreading for improved performance.
     
     Args:
         input_dir (str): Path to the directory containing input images
         output_dir (str): Path to the directory where processed images will be saved
         output_size (tuple): Target size for the output images (width, height)
+        num_threads (int): Number of threads to use for parallel processing
     """
-    # Create output directory if it doesn't exist
-    os.makedirs(output_dir, exist_ok=True)
-    
     # Get list of image files
     image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif']
     
-    processed_count = 0
-    error_count = 0
-    
+    filepaths = []
     for filename in os.listdir(input_dir):
         if any(filename.lower().endswith(ext) for ext in image_extensions):
             input_path = os.path.join(input_dir, filename)
-            output_path = os.path.join(output_dir, f"soft_tissue_{filename}")
-            
-            try:
-                # Preprocess the image with soft tissue optimization
-                processed_image = preprocess_xray_soft_tissue(input_path, output_size)
-                
-                # Save the processed image
-                cv2.imwrite(output_path, processed_image)
-                print(f"Soft tissue processed: {filename}")
-                processed_count += 1
-                
-            except Exception as e:
-                print(f"Error processing {filename}: {str(e)}")
-                error_count += 1
+            filepaths.append(input_path)
     
-    print(f"\nSoft tissue processing complete:")
-    print(f"Successfully processed: {processed_count} images")
-    print(f"Errors encountered: {error_count} images")
+    # Use the multithreaded function to process all images
+    preprocess_filepaths_threaded(filepaths, output_dir, num_threads, output_size)
 
 
-def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=4, output_size=(2500, 2048)):
+def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS, output_size=(2500, 2048)):
     """
     Preprocess a list of image filepaths using multiple threads.
     
@@ -331,6 +314,9 @@ def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=4, output_s
     return successful, errors
 
 
+# Example usage:
+
+#uncomment to test threaded batch processing
 #images = [
 #    'images/00000372_008.png',
 #    'images/00000001_000.png',
@@ -339,7 +325,8 @@ def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=4, output_s
 #output_directory = 'preprocessed_threaded'
 #preprocess_filepaths_threaded(images, output_directory,3,(2500, 2048))
 
+#uncomment to test batch processing
 #preprocess_batch_soft_tissue(input_directory, output_directory)
 
 #uncommment to test single image processing with process visualization
-#preprocess_xray_soft_tissue(input_of_single_image, show_process=True)
+#preprocess_xray_soft_tissue('images/00000001_000.png', show_process=True)
