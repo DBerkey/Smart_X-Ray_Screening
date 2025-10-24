@@ -419,15 +419,12 @@ if __name__ == "__main__":
     
     LOAD_EXISTING_PCA = True    # Set to True to load existing PCA model
     LOAD_EXISTING_DATA = True   # Set to True to skip image loading and PCA transformation
-    
-    # Stage 1 model choice: 'logistic' or 'random_forest'
-    STAGE1_MODEL_TYPE = 'logistic'  # Change to 'random_forest' to try Random Forest
     # =========================
     
     print("\n" + "="*60)
     print("HYBRID TWO-STAGE CLASSIFICATION SYSTEM")
     print("="*60)
-    print(f"Stage 1: {STAGE1_MODEL_TYPE.upper()} (Finding vs No Finding)")
+    print(f"Stage 1: Random Forest (Finding vs No Finding)")
     print("Stage 2: KNN Multi-label classification (Specific conditions)")
     print("="*60 + "\n")
     
@@ -533,7 +530,7 @@ if __name__ == "__main__":
 
     # ===== STAGE 1: BINARY CLASSIFICATION =====
     print("\n" + "="*60)
-    print(f"STAGE 1: {STAGE1_MODEL_TYPE.upper()} BINARY CLASSIFICATION")
+    print(f"STAGE 1: Random Forest BINARY CLASSIFICATION")
     print("="*60)
     
     # Create binary labels
@@ -598,7 +595,7 @@ if __name__ == "__main__":
     )
     
     # Evaluate Stage 1
-    evaluate_binary_model(stage1_model, X_test_encoded, Y_test_binary, f"Stage 1 Final {STAGE1_MODEL_TYPE.upper()}")
+    evaluate_binary_model(stage1_model, X_test_encoded, Y_test_binary, f"Stage 1 Final Random Forest")
     
     # Save Stage 1 model
     stage1_model_path = os.path.join(DATA_DIRECTORY_PATH, f"stage1_{STAGE1_MODEL_TYPE}.pkl")
@@ -720,11 +717,8 @@ if __name__ == "__main__":
     print(f"Image resolution: {img_size}")
     print(f"PCA components: {n_pca_components}")
     print(f"PCA explained variance: {pca.explained_variance_ratio_.sum():.4f} ({pca.explained_variance_ratio_.sum()*100:.2f}%)")
-    print(f"\nStage 1: {STAGE1_MODEL_TYPE.upper()}")
-    if STAGE1_MODEL_TYPE == 'logistic':
-        print(f"  C={best_stage1_config['C']}, class_weight={best_stage1_config['class_weight']}")
-    else:
-        print(f"  n_estimators={best_stage1_config['n_estimators']}, max_depth={best_stage1_config['max_depth']}")
+    print(f"\nStage 1: RANDOM FOREST")
+    print(f"  n_estimators={best_stage1_config['n_estimators']}, max_depth={best_stage1_config['max_depth']}")
     print(f"\nStage 2: KNN")
     print(f"  k={best_stage2_config['n_neighbors']}, metric={best_stage2_config['metric']}")
     print(f"\nTwo-Stage System Performance:")
