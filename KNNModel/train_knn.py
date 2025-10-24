@@ -55,7 +55,9 @@ def build_feature_matrix(images_folder_path, df, img_size):
         Flattened image as a numpy array.
     """
     X_features = []
-    for img_name in df["Image Index"]:
+    for img_index in df["Image Index"]:
+        # Construct filename as soft_tissue_<image_index>
+        img_name = f"soft_tissue_{img_index}"
         path = os.path.join(images_folder_path, img_name)
         X_features.append(load_image_as_vector(path, img_size))
     return np.array(X_features)
@@ -74,7 +76,7 @@ def build_feature_matrix_batched(images_folder_path, df, img_size, batch_size=50
         Batches of flattened images as numpy arrays.
     """
     num_images = len(df)
-    image_names = df["Image Index"].values
+    image_indices = df["Image Index"].values
     
     print(f"Processing {num_images} images in batches of {batch_size}...")
     
@@ -82,7 +84,9 @@ def build_feature_matrix_batched(images_folder_path, df, img_size, batch_size=50
         batch_end = min(i + batch_size, num_images)
         batch_images = []
         
-        for img_name in image_names[i:batch_end]:
+        for img_index in image_indices[i:batch_end]:
+            # Construct filename as soft_tissue_<image_index>
+            img_name = f"soft_tissue_{img_index}"
             path = os.path.join(images_folder_path, img_name)
             batch_images.append(load_image_as_vector(path, img_size))
         
@@ -276,11 +280,11 @@ def evaluate_model_detailed(model, X_test, Y_test, name="Model"):
 if __name__ == "__main__":
     # ===== CONFIGURATION =====
     DATA_DIRECTORY_PATH = "C:/Users/berke/OneDrive/Documenten/school/UiA/Smart_X-Ray_Screening_img-data"
-    images_folder_path = DATA_DIRECTORY_PATH + "/images_M"
+    images_folder_path = DATA_DIRECTORY_PATH + "/images_M-preprocessed"
     images_metadata_path = DATA_DIRECTORY_PATH + "/Data_Entry_2017_v2020.csv"
     
     # Image processing settings
-    img_size = (1000, 820)      # resolution of the images (width, height)
+    img_size = (500, 500)      # resolution of the images (width, height)
     n_pca_components = 1000     
     batch_size = 1000           # Must be >= n_pca_components for IncrementalPCA 
     
@@ -291,8 +295,15 @@ if __name__ == "__main__":
     df = pd.read_csv(images_metadata_path)
 
     # Filter the metadata to only include images present in the folder
-    image_names = set(os.listdir(images_folder_path))
-    df = df[df['Image Index'].isin(image_names)]
+    # Image files are named as soft_tissue_<image_index>.png
+    image_files = set(os.listdir(images_folder_path))
+    available_indices = set()
+    for filename in image_files:
+        if filename.startswith("soft_tissue_") and filename.endswith(".png"):
+            img_index = filename[len("soft_tissue_"):]
+            available_indices.add(img_index)
+    
+    df = df[df['Image Index'].astype(str).isin(available_indices)]
 
     x = df[['Image Index', 'Patient Age', 'Patient Sex']]
     y = df['Finding Labels']
@@ -401,7 +412,7 @@ if __name__ == "__main__":
         {'n_neighbors': 1500, 'metric': 'minkowski', 'weights': 'distance'},
         {'n_neighbors': 2000, 'metric': 'euclidean', 'weights': 'distance'},
         {'n_neighbors': 2000, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 2000, 'metric': 'minkowski', 'weights': 'distance'}w
+        {'n_neighbors': 2000, 'metric': 'minkowski', 'weights': 'distance'}
     ]   
     
     print(f"Testing {len(test_configs)} configurations...")
