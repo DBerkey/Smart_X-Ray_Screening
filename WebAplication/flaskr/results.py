@@ -1,120 +1,129 @@
-
-from flask import (
-    Blueprint, render_template, session, url_for, redirect, send_file
-)
 from io import BytesIO
+from pathlib import Path
 
-bp = Blueprint("results", __name__, url_prefix="/results")
+from flask import Blueprint, render_template, session, url_for, redirect, abort, send_file
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.utils import ImageReader
 
+# Reuse helpers from analyze.py
+from .analyze import _interfaces_paths  # provides Input/PreProcess/Processed directories
 
+bp = Blueprint("results", __name__)
 
-@bp.route("/", methods=["GET"])
+@bp.route("/results")
 def show_results():
-    # Retrieve the latest results from the session
-    data = session.get("latest_result")
-    # If no data, redirect to home
-    if not data:
-        return redirect(url_for("home.index"))
-
-    area = data.get("image_area")   # "PreProcess" or "Input"
-    name = data.get("image_name")
-    image_url = url_for("analyze.serve_interfaces_image", area=area, filename=name) if (area and name) else None
-    
-    # Extract findings and overall confidence
-    findings = data.get("findings", []) or []
-    overall_conf = data.get("overall_conf")  
-
+    payload = session.get("latest_result")
+    if not payload:
+        return redirect("/")
+    image_url = url_for(
+        "analyze.serve_interfaces_image",
+        area=payload["image_area"],
+        filename=payload["image_name"]
+    )
     return render_template(
         "results/results.html",
         image_url=image_url,
-        num_findings=data.get("num_findings", len(findings)),
-        overall_conf=overall_conf,
-        findings=findings,
-        patient=data.get("patient"),
-        generated_at=data.get("generated_at"),
+        num_findings=payload.get("num_findings"),
+        findings=payload.get("findings"),
+        patient=payload.get("patient"),
+        generated_at=payload.get("generated_at"),
+        overall_conf=payload.get("overall_conf"),
     )
 
-
-@bp.route("/export", methods=["GET"])
+@bp.route("/results/export-pdf")
 def export_pdf():
-  
-    try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib.units import mm
-        from reportlab.pdfgen import canvas
-    except Exception:
-        # ReportLab not installed — just go back to results page
-        return redirect(url_for("results.show_results"))
+    payload = session.get("latest_result")
+    if not payload:
+        abort(404, "No result in session.")
 
-    data = session.get("latest_result") or {}
-    findings = data.get("findings", []) or []
-    overall_conf = data.get("overall_conf")
+    # Resolve the image path from the saved area/name
+    _, input_dir, preproc_dir, processed_dir = _interfaces_paths()
+    base = {"Input": input_dir, "PreProcess": preproc_dir, "Processed": processed_dir}.get(
+        payload.get("image_area")
+    )
+    image_path = (base / payload.get("image_name")).resolve() if base else None
 
-    generated_at = data.get("generated_at", "")
-    patient = data.get("patient", {}) or {}
+    # Fallback if the file was ephemeral or missing
+    if not image_path or not image_path.exists():
+        # Last resort: try to show the original upload instead of failing the export
+        try:
+            image_path = (input_dir / payload.get("image_name")).resolve()
+        except Exception:
+            image_path = None
 
-    # Create PDF in memory
+    # Build PDF in-memory
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
-    width, height = A4
+    page_w, page_h = A4
+    margin = 36
+    y = page_h - margin
 
-    y = height - 20 * mm
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(20 * mm, y, "Smart X-Ray Screening — Results")
-    y -= 10 * mm
+    # Header
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(margin, y, "Smart X-Ray Screening — Results")
+    y -= 18
+    c.setFont("Helvetica", 10)
+    c.drawString(margin, y, f"Generated: {payload.get('generated_at', '—')}")
+    y -= 24
 
-    c.setFont("Helvetica", 11)
-    if generated_at:
-        c.drawString(20 * mm, y, f"Generated: {generated_at}")
-        y -= 8 * mm
-
-    # Patient details
-    p_sex = patient.get("sex", "—")
-    p_age = patient.get("age", "—")
-    c.drawString(20 * mm, y, f"Patient: Sex={p_sex}, Age={p_age}")
-    y -= 12 * mm
-
-    # Analysis summary
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(20 * mm, y, f"Diseases Found: {len(findings)}")
-    y -= 8 * mm
-    if overall_conf is not None:
-     pct = round(float(overall_conf) * 100.0, 1)
-     c.drawString(20*mm, y, f"Overall Confidence: {pct}%")
+    # Image (keep aspect ratio; fit in upper half)
+    max_w = page_w - 2*margin
+    max_h = page_h * 0.45
+    if image_path and image_path.exists():
+        try:
+            img = ImageReader(str(image_path))
+            iw, ih = img.getSize()
+            scale = min(max_w/iw, max_h/ih)
+            draw_w, draw_h = iw*scale, ih*scale
+            c.drawImage(img, margin, y - draw_h, draw_w, draw_h, preserveAspectRatio=True, anchor='n')
+            y -= draw_h + 18
+        except Exception:
+            c.setFont("Helvetica-Oblique", 10)
+            c.drawString(margin, y, "(Image could not be embedded)")
+            y -= 18
     else:
-     c.drawString(20*mm, y, "Overall Confidence: No confidence rate available")
-    y -= 10*mm
+        c.setFont("Helvetica-Oblique", 10)
+        c.drawString(margin, y, "(No image available)")
+        y -= 18
 
-    # Findings
+    # Findings (per-finding confidence)
     c.setFont("Helvetica-Bold", 12)
-    c.drawString(20 * mm, y, "Findings:")
-    y -= 7 * mm
-    c.setFont("Helvetica", 11)
+    c.drawString(margin, y, "Detected Findings")
+    y -= 14
+    c.setFont("Helvetica", 10)
+    findings = payload.get("findings") or []
+    if not findings:
+        c.drawString(margin, y, "None")
+        y -= 12
+    else:
+        for i, f in enumerate(findings, 1):
+            label = f.get("label", "—")
+            score = f.get("score")
+            score_txt = f"{round(float(score)*100,1)}%" if score is not None else "—"
+            bbox = f.get("bbox")
+            line = f"{i}. {label} — {score_txt}"
+            if bbox:
+                line += f"   bbox: {bbox}"
+            # New page if needed
+            if y < margin + 12:
+                c.showPage(); y = page_h - margin; c.setFont("Helvetica", 10)
+            c.drawString(margin, y, line)
+            y -= 12
 
-    for i, f in enumerate(findings, start=1):
-        label = f.get("label", "—")
-        score = f.get("score")
-        bbox = f.get("bbox")
-        pct_str = f"{round(float(score) * 100.0, 1)}%" if score is not None else "—"
-        line = f"{i}. {label} — {pct_str}"
-        if bbox and isinstance(bbox, (list, tuple)) and len(bbox) == 4:
-            line += f", bbox={bbox}"
-        c.drawString(25 * mm, y, line)
-        y -= 6 * mm
-
-        # paginate if we run out of space
-        if y < 20 * mm:
-            c.showPage()
-            y = height - 20 * mm
-            c.setFont("Helvetica", 11)
+    # Patient section
+    patient = payload.get("patient")
+    if patient:
+        if y < margin + 40:
+            c.showPage(); y = page_h - margin
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(margin, y, "Patient")
+        y -= 14
+        c.setFont("Helvetica", 10)
+        c.drawString(margin, y, f"Sex: {patient.get('sex','—')}    Age: {patient.get('age','—')}")
+        y -= 12
 
     c.showPage()
     c.save()
     buf.seek(0)
-
-    return send_file(
-        buf,
-        mimetype="application/pdf",
-        as_attachment=True,
-        download_name="results.pdf",
-    )
+    return send_file(buf, download_name="xray_results.pdf", mimetype="application/pdf", as_attachment=True)
