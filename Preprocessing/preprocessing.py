@@ -268,32 +268,30 @@ def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False):
     # Load the image
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     workbench.append(image)
-    
+
     if image is None:
         raise ValueError(f"Could not load image from {image_path}")
-    
-    # Resize image to target size
+
+    # Convert to HSV (load as color first)
+    color_image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+    hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
+    workbench.append(hsv_image)
+
+    # Apply CLAHE to V channel
+    h, s, v = cv2.split(hsv_image)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    v_clahe = clahe.apply(v)
+    hsv_clahe = cv2.merge([h, s, v_clahe])
+    workbench.append(hsv_clahe)
+
+    # Convert back to grayscale for consistency
+    gray_clahe = cv2.cvtColor(hsv_clahe, cv2.COLOR_HSV2BGR)
+    gray_clahe = cv2.cvtColor(gray_clahe, cv2.COLOR_BGR2GRAY)
+    workbench.append(gray_clahe)
+
+    # Resize to target size
     resized = cv2.resize(workbench[-1], output_size)
     workbench.append(resized)
-
-    # apply hsv adjustment
-    hsv_adjusted = cv2.equalizeHist(workbench[-1])
-    workbench.append(hsv_adjusted)
-
-    # Apply CLAHE for contrast enhancement
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    enhanced = clahe.apply(workbench[-1])
-    workbench.append(enhanced)
-
-    # Apply Gaussian blur to reduce noise
-    blurred = cv2.GaussianBlur(workbench[-1], (5, 5), 0)
-    workbench.append(blurred)
-    
-    # find feature with sift and draw keypoints
-    #sift = cv2.SIFT_create()
-    #keypoints, descriptors = sift.detectAndCompute(workbench[-1], None)
-    #keypoint_image = cv2.drawKeypoints(workbench[-1], keypoints, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-    #workbench.append(keypoint_image)
 
     if show_process:
         # Clear and create pipeline directory
