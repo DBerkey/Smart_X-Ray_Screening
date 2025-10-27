@@ -251,6 +251,65 @@ def preprocess_xray_soft_tissue(image_path, output_size=(2500, 2048), show_proce
     return workbench[-1]
 
 
+def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False):
+    """
+    Apply standard preprocessing pipeline to an X-ray image.
+    
+    Args:
+        image_path (str): Path to the input X-ray image
+        output_size (tuple): Target size for the output image (width, height)
+        show_process (bool): Whether to save intermediate processing steps
+    
+    Returns:
+        numpy.ndarray: Preprocessed image array
+    """
+    # Image processing log
+    workbench = []
+    # Load the image
+    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    workbench.append(image)
+    
+    if image is None:
+        raise ValueError(f"Could not load image from {image_path}")
+    
+    # Resize image to target size
+    resized = cv2.resize(workbench[-1], output_size)
+    workbench.append(resized)
+
+    # apply hsv adjustment
+    hsv_adjusted = cv2.equalizeHist(workbench[-1])
+    workbench.append(hsv_adjusted)
+
+    # Apply CLAHE for contrast enhancement
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(workbench[-1])
+    workbench.append(enhanced)
+
+    # Apply Gaussian blur to reduce noise
+    blurred = cv2.GaussianBlur(workbench[-1], (5, 5), 0)
+    workbench.append(blurred)
+    
+    # find feature with sift and draw keypoints
+    #sift = cv2.SIFT_create()
+    #keypoints, descriptors = sift.detectAndCompute(workbench[-1], None)
+    #keypoint_image = cv2.drawKeypoints(workbench[-1], keypoints, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+    #workbench.append(keypoint_image)
+
+    if show_process:
+        # Clear and create pipeline directory
+        pipeline_dir = 'standard_pipeline'
+        if os.path.exists(pipeline_dir):
+            shutil.rmtree(pipeline_dir)
+        os.makedirs(pipeline_dir)
+        
+        for i, img in enumerate(workbench):
+            output_path = os.path.join(pipeline_dir, f'{i:02d}.png')
+            cv2.imwrite(output_path, img)
+            print(f"Saved standard pipeline stage: {output_path}")
+
+    return workbench[-1]
+
+
 def preprocess_batch_soft_tissue(input_dir, output_dir, output_size=(2500, 2048), num_threads=NUM_THREADS):
     """
     Preprocess all X-ray images in a directory with soft tissue optimization and save them to an output directory.
@@ -294,7 +353,7 @@ def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS
         try:
             filename = os.path.basename(filepath)
             output_path = os.path.join(output_dir, f"soft_tissue_{filename}")
-            processed_image = preprocess_xray_soft_tissue(filepath, output_size)
+            processed_image = preprocess_xray(filepath, output_size)
             cv2.imwrite(output_path, processed_image)
             return True, filepath
         except Exception as e:
@@ -314,19 +373,20 @@ def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS
     return successful, errors
 
 
-# Example usage:
+if __name__ == "__main__":
+    # Example usage:
 
-#uncomment to test threaded batch processing
-#images = [
-#    'images/00000372_008.png',
-#    'images/00000001_000.png',
-#    'images/00000032_005.png'
-#]
-#output_directory = 'preprocessed_threaded'
-#preprocess_filepaths_threaded(images, output_directory,3,(2500, 2048))
+    #uncomment to test threaded batch processing
+    #images = [
+    #    'images/00000372_008.png',
+    #    'images/00000001_000.png',
+    #    'images/00000032_005.png'
+    #]
+    #output_directory = 'preprocessed_threaded'
+    #preprocess_filepaths_threaded(images, output_directory,3,(2500, 2048))
 
-#uncomment to test batch processing
-#preprocess_batch_soft_tissue(input_directory, output_directory)
+    #uncomment to test batch processing
+    preprocess_batch_soft_tissue(input_directory, output_directory)
 
-#uncommment to test single image processing with process visualization
-#preprocess_xray_soft_tissue('images/00000001_000.png', show_process=True)
+    #uncommment to test single image processing with process visualization
+    preprocess_xray('images/00000001_000.png', show_process=True)
