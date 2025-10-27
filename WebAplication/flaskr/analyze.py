@@ -64,17 +64,24 @@ def _try_run_interfaces_pipeline(copied_input: Path) -> None:
 
 def _load_interfaces_outputs(preproc_dir: Path, processed_dir: Path):
     """
-    Always returns (annotated_path: Optional[Path], findings: list, overall_conf: Optional[float]).
-    Supports two JSON shapes:
-      A) {"findings":[{label,score,bbox}], "overall_conf": 0.87}
-      B) {"Disease":{"Sureness": x, "Box_x": a, "Box_y": b}, ...}
+    Returns (annotated_path: Optional[Path], findings: list, overall_conf: None).
+
+    JSON supported:
+      A) {"findings":[{"label": "...", "score": 0.87, "bbox": [x,y,w,h]?}]}
+      B) {"Disease":{"Sureness": 87, "Box_x": a, "Box_y": b, ...}, ...}
     """
+    def _norm_score(v):
+        try:
+            v = float(v)
+        except Exception:
+            return None
+        return v/100.0 if v > 1.0 else v
+
     annotated_path: Optional[Path] = None
     findings = []
-    overall_conf: Optional[float] = None
 
     try:
-        # 1) Annotated image: prefer known names, else first image found
+        # Prefer known pre-process preview; else first image in PreProcess
         if preproc_dir and preproc_dir.exists():
             candidates = [
                 preproc_dir / "pre_processed_img.png",
@@ -87,31 +94,37 @@ def _load_interfaces_outputs(preproc_dir: Path, processed_dir: Path):
                 if imgs:
                     annotated_path = imgs[0]
 
-        # 2) Findings / overall_conf
+        # Findings only (no overall)
         if processed_dir and processed_dir.exists():
             data_json = processed_dir / "processed_data.json"
             if data_json.exists():
                 try:
                     data = json.loads(data_json.read_text(encoding="utf-8"))
                     if isinstance(data, dict) and "findings" in data:
-                        findings = data.get("findings") or []
-                        overall_conf = data.get("overall_conf")
+                        raw = data.get("findings") or []
+                        out = []
+                        for f in raw:
+                            label = f.get("label")
+                            score = _norm_score(f.get("score"))
+                            bbox = f.get("bbox")
+                            out.append({"label": label, "score": score, "bbox": bbox})
+                        findings = out
                     elif isinstance(data, dict):
-                        tmp = []
+                        out = []
                         for label, attrs in data.items():
                             if not isinstance(attrs, dict):
                                 continue
-                            score = attrs.get("Sureness")
-                            # If only Box_x / Box_y (point), keep bbox=None; template handles it.
-                            tmp.append({"label": label, "score": score, "bbox": None})
-                        findings = tmp
-                        overall_conf = None  # per your preference, do not compute
+                            score = _norm_score(attrs.get("Sureness"))
+                            # Keep bbox only if you actually write it in JSON; else None
+                            bbox = None
+                            out.append({"label": label, "score": score, "bbox": bbox})
+                        findings = out
                 except Exception:
                     pass
     except Exception:
         pass
 
-    return annotated_path, findings, overall_conf
+    return annotated_path, findings, None
 
 # Form helpers
 def _coerce_age(value):
@@ -200,21 +213,22 @@ def analyze_upload():
     _, _, preproc_dir, processed_dir = _interfaces_paths()
     annotated_path, findings, overall_conf = _load_interfaces_outputs(preproc_dir, processed_dir)
 
-    # Decide which image to show results page
     if annotated_path and annotated_path.exists():
-        area, image_name = "PreProcess", annotated_path.name
+        if processed_dir and annotated_path.parent == processed_dir:
+            area, image_name = "Processed", annotated_path.name
+        else:
+            area, image_name = "PreProcess", annotated_path.name
     else:
         area, image_name = "Input", saved_in_input.name
 
     # Build session payload & redirect
     payload = {
-        "image_area": area,              
-        "image_name": image_name,        
-        "num_findings": len(findings),
-        "overall_conf": overall_conf,    
-        "findings": findings,
-        "patient": {"sex": sex, "age": age} if (sex or age is not None) else None,
-        "generated_at": _now_utc_z(),
+    "image_area": area,
+    "image_name": image_name,
+    "num_findings": len(findings),
+    "findings": findings,
+    "patient": {"sex": sex, "age": age} if (sex or age is not None) else None,
+    "generated_at": _now_utc_z(),
     }
     session["latest_result"] = payload
     return redirect(url_for("results.show_results"))
@@ -222,23 +236,29 @@ def analyze_upload():
 @bp.route("/interfaces-image/<area>/<path:filename>")
 def serve_interfaces_image(area, filename):
     """
-    Serve images from Interfaces/{Input,PreProcess}.
+    Serve images from Interfaces/{Input,PreProcess,Processed}.
 
-    - Input (original upload): read -> send (KEEP the file)
-    - PreProcess (annotated):  read -> send -> DELETE (ephemeral)
+    - Input (original upload):       read -> send (KEEP)
+    - PreProcess (intermediate):     read -> send -> DELETE (ephemeral)
+    - Processed (final annotated):   read -> send (KEEP)
     """
-    _, input_dir, preproc_dir, _ = _interfaces_paths()
-    if area not in {"Input", "PreProcess"}:
-        abort(400)
+    _, input_dir, preproc_dir, processed_dir = _interfaces_paths()
+    if area not in {"Input", "PreProcess", "Processed"}:
+        abort(404)
 
-    base = input_dir if area == "Input" else preproc_dir
-    path = base / filename
-    if not path.exists():
+    if area == "Input":
+        path = input_dir / filename
+    elif area == "PreProcess":
+        path = preproc_dir / filename
+    else:  # "Processed"
+        path = processed_dir / filename
+
+    if not path.exists() or not path.is_file():
         abort(404)
 
     data = path.read_bytes()
 
-    # Delete annotated images after serving
+    # Only delete PreProcess preview images after serving
     if area == "PreProcess":
         try:
             path.unlink(missing_ok=True)
@@ -246,9 +266,5 @@ def serve_interfaces_image(area, filename):
             pass
 
     mime, _ = mimetypes.guess_type(str(filename))
-    return send_file(
-        BytesIO(data),
-        mimetype=mime or "application/octet-stream",
-        as_attachment=False,
-        download_name=filename,
-    )
+    return send_file(BytesIO(data), mimetype=mime or "application/octet-stream",
+                     as_attachment=False, download_name=filename)
