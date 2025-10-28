@@ -20,9 +20,14 @@
     This will open a file selection dialog where you can choose the X-Ray image file from your device. 
     After selecting the desired image file, click on the "Open" button in the file dialog.<br>
     You will then see the name of the selected file displayed above the "Upload" button, and you will be able to see a preview of the image, so you can ensure that the right image was picked. <br>
-    It is important to note that it is not possible to upload multiple images at once; only one image can be uploaded at a time.
-    The last step after uploading the image and before being able to start the analysis by clicking on the "Submit" button is to select the patient's sex and age from the provided dropdown menus.
+    It is important to note that it is not possible to upload multiple images at once; only one image can be uploaded at a time. <br>
+    The last step after uploading the image and before being able to start the analysis by clicking on the "Submit" button is to select the patient's sex and age from the provided dropdown menus. <br>
     </p>
+    <figure style="display:grid;place-items:center;margin:1rem 0">
+    <img src="{{ url_for('static', filename='file_upload.gif') }}"
+       alt="Click Upload and select a file" width="720" loading="lazy">
+    </figure>
+    
 
     <h2>Understanding the results</h2>
     <p style="text-align: justify;">
@@ -35,7 +40,10 @@
     This comprehensive breakdown allows for a deeper understanding of the analysis results, enabling you to make informed decisions based on the findings presented. <br>
     There is also the option to export the results as a PDF document for easy sharing and record-keeping, or to print the results directly from the application.
     </p>
-    
+    <figure style="display:grid;place-items:center;margin:1rem 0">
+    <img src="{{ url_for('static', filename='file_submit.gif') }}"
+       alt="Click Submit and " width="720" loading="lazy">
+    </figure>
 
     
 {% endblock %}
