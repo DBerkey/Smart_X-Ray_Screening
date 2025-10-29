@@ -13,6 +13,9 @@ from sklearn.decomposition import IncrementalPCA
 from sklearn.metrics import accuracy_score, hamming_loss, f1_score, jaccard_score
 from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.manifold import TSNE
+from sklearn.neighbors import KNeighborsClassifier
+import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import numpy as np
@@ -260,7 +263,6 @@ def train_knn_model(X_train, Y_train, n_neighbors=5, metric='manhattan', weights
     Returns:
         Trained KNN model.
     """
-    from sklearn.neighbors import KNeighborsClassifier
     knn = KNeighborsClassifier(n_neighbors=n_neighbors, metric=metric, weights=weights)
     knn.fit(X_train, Y_train)
     return knn
@@ -419,8 +421,8 @@ if __name__ == "__main__":
     n_pca_components = 1000     
     batch_size = 1000           # Must be >= n_pca_components for IncrementalPCA 
     
-    LOAD_EXISTING_PCA = True    # Set to True to load existing PCA model
-    LOAD_EXISTING_DATA = True   # Set to True to skip image loading and PCA transformation
+    LOAD_EXISTING_PCA = False    # Set to True to load existing PCA or LDA model
+    LOAD_EXISTING_DATA = False   # Set to True to skip image loading and PCA or LDAtransformation
 
     PCAUSE = False              # Set to True to use PCA instead of LDA
     # =========================
@@ -465,10 +467,8 @@ if __name__ == "__main__":
 
     # Check if we should load existing processed data
     processed_data_path = os.path.join(DATA_DIRECTORY_PATH, "processed_features.npz")
-    if PCAUSE:
-        pca_model_path = os.path.join(DATA_DIRECTORY_PATH, "pca_model.pkl")
-    else:
-        lda_model_path = os.path.join(DATA_DIRECTORY_PATH, "lda_model.pkl")
+    pca_model_path = os.path.join(DATA_DIRECTORY_PATH, "pca_model.pkl")
+    lda_model_path = os.path.join(DATA_DIRECTORY_PATH, "lda_model.pkl")
     scaler_path = os.path.join(DATA_DIRECTORY_PATH, "feature_scaler.pkl")
     
     if LOAD_EXISTING_DATA and os.path.exists(processed_data_path) and os.path.exists(scaler_path):
@@ -550,28 +550,57 @@ if __name__ == "__main__":
                 pickle.dump(feature_scaler, f)
 
         else:
-            # LDA path - LDA is supervised and requires the full feature matrix for the training set.
-            print("\n=== Preparing data for LDA (supervised dimensionality reduction) ===")
-            # Load raw image matrices for training and test
-            X_train_raw = load_raw_feature_matrix(images_folder_path, pd.DataFrame(train[0]), img_size, batch_size=batch_size)
-            X_test_raw = load_raw_feature_matrix(images_folder_path, pd.DataFrame(test[0]), img_size, batch_size=batch_size)
+            # LDA path - First reduce dimensions with PCA, then apply LDA
+            # This avoids memory issues with high-dimensional data
+            print("\n=== Preparing data for PCA+LDA (two-step dimensionality reduction) ===")
+            
+            # Step 1: Apply PCA first to reduce dimensions
+            if LOAD_EXISTING_PCA and os.path.exists(pca_model_path):
+                print("\n=== Loading Existing PCA Model ===")
+                with open(pca_model_path, 'rb') as f:
+                    pca = pickle.load(f)
+                print(f"✓ Loaded PCA model with {pca.n_components} components")
+                try:
+                    explained = pca.explained_variance_ratio_.sum()
+                    print(f"✓ Explained variance: {explained:.4f} ({explained*100:.2f}%)")
+                except Exception:
+                    pass
+            else:
+                print("\n=== Training PCA Model (Step 1 of PCA+LDA) ===")
+                # Fit PCA on training data using incremental approach
+                pca = fit_pca_incremental(images_folder_path, pd.DataFrame(train[0]), img_size, 
+                                          n_components=n_pca_components, batch_size=batch_size)
+                # Save PCA model
+                print(f"✓ Saving PCA model to {pca_model_path}")
+                with open(pca_model_path, 'wb') as f:
+                    pickle.dump(pca, f)
 
-            # Use binary labels (Finding vs No Finding) for LDA fitting
+            # Transform data using PCA
+            print("\n=== Processing Training Data with PCA ===")
+            X_train_pca = transform_features_batched(images_folder_path, pd.DataFrame(train[0]), 
+                                                 img_size, pca, batch_size=batch_size)
+            
+            print("\n=== Processing Test Data with PCA ===")
+            X_test_pca = transform_features_batched(images_folder_path, pd.DataFrame(test[0]), 
+                                                img_size, pca, batch_size=batch_size)
+
+            # Step 2: Apply LDA on PCA-reduced features
+            print("\n=== Applying LDA on PCA-reduced features (Step 2 of PCA+LDA) ===")
             Y_train_binary = create_binary_labels(train[1])
 
             # Determine allowed number of components for LDA: at most n_classes-1
             unique_classes = np.unique(Y_train_binary)
             max_lda_components = max(1, len(unique_classes) - 1)
-            # We'll respect n_pca_components as an upper-bound, but LDA cannot exceed max_lda_components
-            n_lda_components = min(max_lda_components, max(1, int(n_pca_components)))
+            # LDA components cannot exceed n_classes-1 (which is 1 for binary classification)
+            n_lda_components = min(max_lda_components, 1)
 
-            print(f"Fitting LDA with n_components={n_lda_components} (max allowed: {max_lda_components}) on {X_train_raw.shape[0]} samples")
+            print(f"Fitting LDA with n_components={n_lda_components} (max allowed: {max_lda_components}) on PCA-reduced data with shape {X_train_pca.shape}")
             lda = LinearDiscriminantAnalysis(n_components=n_lda_components)
-            lda.fit(X_train_raw, Y_train_binary)
+            lda.fit(X_train_pca, Y_train_binary)
 
             # Transform data using LDA
-            X_train_lda = lda.transform(X_train_raw)
-            X_test_lda = lda.transform(X_test_raw)
+            X_train_lda = lda.transform(X_train_pca)
+            X_test_lda = lda.transform(X_test_pca)
 
             # Standardize LDA features
             print("\n=== Standardizing LDA Features ===")
@@ -594,6 +623,24 @@ if __name__ == "__main__":
             print(f"✓ Saving LDA model to {lda_model_path}")
             with open(lda_model_path, 'wb') as f:
                 pickle.dump(lda, f)
+
+    print("\n=== t-SNE Visualization (Binary Labels) ===")
+    # Use the encoded features after dimensionality reduction (X_train_encoded)
+    # For speed, use a subset if dataset is large
+    tsne_sample_size = min(2000, len(X_train_encoded))
+    idx = np.random.choice(len(X_train_encoded), tsne_sample_size, replace=False)
+    X_vis = X_train_encoded[idx]
+    y_vis = Y_train_binary[idx]
+    tsne = TSNE(n_components=2, random_state=42, perplexity=30)
+    X_tsne = tsne.fit_transform(X_vis)
+    plt.figure(figsize=(8,6))
+    scatter = plt.scatter(X_tsne[:,0], X_tsne[:,1], c=y_vis, cmap='coolwarm', alpha=0.6)
+    plt.title('t-SNE Visualization of Training Data (Binary Labels)')
+    plt.xlabel('t-SNE 1')
+    plt.ylabel('t-SNE 2')
+    plt.legend(*scatter.legend_elements(), title="Class")
+    plt.tight_layout()
+    plt.show()
 
     # ===== STAGE 1: BINARY CLASSIFICATION =====
     print("\n" + "="*60)
@@ -785,8 +832,12 @@ if __name__ == "__main__":
     print(f"Training samples: {len(X_train_encoded)}")
     print(f"Test samples: {len(X_test_encoded)}")
     print(f"Image resolution: {img_size}")
-    print(f"PCA components: {n_pca_components}")
-    print(f"PCA explained variance: {pca.explained_variance_ratio_.sum():.4f} ({pca.explained_variance_ratio_.sum()*100:.2f}%)")
+    if PCAUSE:
+        print(f"PCA components: {n_pca_components}")
+        print(f"PCA explained variance: {pca.explained_variance_ratio_.sum():.4f} ({pca.explained_variance_ratio_.sum()*100:.2f}%)")
+    else:
+        print(f"Dimensionality reduction: PCA (n={n_pca_components}) + LDA")
+        print(f"PCA explained variance: {pca.explained_variance_ratio_.sum():.4f} ({pca.explained_variance_ratio_.sum()*100:.2f}%)")
     print(f"\nStage 1 (Binary): k={best_stage1_config['n_neighbors']}, {best_stage1_config['metric']}")
     print(f"Stage 2 (Multi-label): k={best_stage2_config['n_neighbors']}, {best_stage2_config['metric']}")
     print(f"\nTwo-Stage System Performance:")
