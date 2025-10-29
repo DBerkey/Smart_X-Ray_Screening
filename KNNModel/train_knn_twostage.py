@@ -227,11 +227,14 @@ def encode_scale_input_features(df, X_img):
     """
     age = df[['Patient Age']].values
     age_scaled = StandardScaler().fit_transform(age)
-    
+
     sex_enc = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
     sex_encoded = sex_enc.fit_transform(df[['Patient Sex']])
-    
-    X_combined = np.hstack([X_img, age_scaled, sex_encoded])
+
+    view_enc = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+    view_encoded = view_enc.fit_transform(df[['View Position']])
+    X_combined = np.hstack([X_img, age_scaled, sex_encoded, view_encoded])
+
     return X_combined
 
 def standardize_pca_features(X_train, X_test, X_eval=None):
@@ -453,7 +456,7 @@ if __name__ == "__main__":
     print(f"No Finding: {no_finding_count} ({no_finding_count/len(df)*100:.1f}%)")
     print(f"Has Finding: {has_finding_count} ({has_finding_count/len(df)*100:.1f}%)")
 
-    x = df[['Image Index', 'Patient Age', 'Patient Sex']]
+    x = df[['Image Index', 'Patient Age', 'Patient Sex', 'View Position']]
     y = df['Finding Labels']
 
     train, test, eval = split_data_train_test_eval(x, y)
