@@ -140,7 +140,7 @@ def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False, pr
     return output_data
 
 
-def preprocess_batch_soft_tissue(input_dir, output_dir, output_size=(2500, 2048), num_threads=NUM_THREADS, process_types=['standard']):
+def preprocess_batch(input_dir, output_dir, output_size=(2500, 2048), num_threads=NUM_THREADS, process_types=['standard']):
     """
     Preprocess all X-ray images in a directory with soft tissue optimization and save them to an output directory.
     Uses multithreading for improved performance.
@@ -229,7 +229,7 @@ if __name__ == "__main__":
     #preprocess_filepaths_threaded(images, output_directory,3,(2500, 2048))
 
     #uncomment to test batch processing
-    preprocess_batch_soft_tissue(input_directory, output_directory, process_types=['standard','edges'])
+    preprocess_batch(input_directory, output_directory, process_types=['standard','edges'])
 
     #uncommment to test single image processing with process visualization
     preprocess_xray('images/00000001_000.png', show_process=True)
