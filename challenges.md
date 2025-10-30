@@ -23,3 +23,11 @@ The issue was that aggressive preprocessing can distort the underlying patterns 
 - **Identify which techniques help vs. hurt** feature extraction
 
 This iterative approach allows us to build an evidence-based pipeline tailored specifically to what the KNN model needs, rather than what looks good to human eyes.
+
+
+# add edges and sift features
+to pass further information to the following processing stage we extract edges using Canny edge detection and SIFT features from the preprocessed X-ray images. This additional information can help improve the performance of the KNN classifier by providing more distinctive features for classification.
+
+adding these into a png was not possible so we save them in a npy file
+
+is adding the sift features really reasonable in the preprocessing stage? storing it takes a significant amount of space and the sift features depend on parameters that might be better tuned later in the pipeline.

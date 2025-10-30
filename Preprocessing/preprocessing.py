@@ -251,7 +251,42 @@ def preprocess_xray_soft_tissue(image_path, output_size=(2500, 2048), show_proce
     return workbench[-1]
 
 
-def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False):
+def detect_edges(image):
+    """
+    Detect edges in the image using Canny edge detection.
+    
+    Args:
+        image (numpy.ndarray): Input grayscale image
+    Returns:
+        numpy.ndarray: Edge-detected image as binary mask
+    """
+    # blurring
+    blurred = cv2.GaussianBlur(image, (5, 5), 0)
+    blurred = cv2.medianBlur(blurred, 5)
+
+
+    # Apply Canny edge detection
+    threshold1 = 25
+    edges = cv2.Canny(blurred, threshold1=threshold1, threshold2=3*threshold1, apertureSize=3)
+    
+    return edges
+
+
+def build_output_data(images):
+    """
+    Build output data structure.
+    
+    Args:
+        images (list): List of preprocessed images
+    Returns:
+        output image
+    """
+    # stack images along a new dimension
+    output = np.stack(images, axis=-1)
+    return output
+
+
+def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False, process_types=['standard']):
     """
     Apply standard preprocessing pipeline to an X-ray image.
     
@@ -259,12 +294,13 @@ def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False):
         image_path (str): Path to the input X-ray image
         output_size (tuple): Target size for the output image (width, height)
         show_process (bool): Whether to save intermediate processing steps
-    
+        process_types (list): List of processing types to apply (currently only 'standard' is implemented)
     Returns:
         numpy.ndarray: Preprocessed image array
     """
     # Image processing log
     workbench = []
+    processed = []
     # Load the image
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     workbench.append(image)
@@ -292,6 +328,21 @@ def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False):
     # Resize to target size
     resized = cv2.resize(workbench[-1], output_size)
     workbench.append(resized)
+    # Record processed image if required
+    if 'standard' in process_types:
+        processed.append(workbench[-1])
+
+    # detect edges
+    edges = detect_edges(workbench[-1])
+    workbench.append(edges)
+    # Record processed image if required
+    if 'edges' in process_types:
+        processed.append(edges)
+
+
+    # build output data
+    output_data = build_output_data(processed)
+
 
     if show_process:
         # Clear and create pipeline directory
@@ -305,10 +356,10 @@ def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False):
             cv2.imwrite(output_path, img)
             print(f"Saved standard pipeline stage: {output_path}")
 
-    return workbench[-1]
+    return output_data
 
 
-def preprocess_batch_soft_tissue(input_dir, output_dir, output_size=(2500, 2048), num_threads=NUM_THREADS):
+def preprocess_batch_soft_tissue(input_dir, output_dir, output_size=(2500, 2048), num_threads=NUM_THREADS, process_types=['standard']):
     """
     Preprocess all X-ray images in a directory with soft tissue optimization and save them to an output directory.
     Uses multithreading for improved performance.
@@ -329,10 +380,10 @@ def preprocess_batch_soft_tissue(input_dir, output_dir, output_size=(2500, 2048)
             filepaths.append(input_path)
     
     # Use the multithreaded function to process all images
-    preprocess_filepaths_threaded(filepaths, output_dir, num_threads, output_size)
+    preprocess_filepaths_threaded(filepaths, output_dir, num_threads, output_size, process_types)
 
 
-def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS, output_size=(2500, 2048)):
+def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS, output_size=(2500, 2048), process_types=['standard']):
     """
     Preprocess a list of image filepaths using multiple threads.
     
@@ -341,6 +392,7 @@ def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS
         output_dir (str): Path to the directory where processed images will be saved
         num_threads (int): Number of threads to use for parallel processing
         output_size (tuple): Target size for the output images (width, height)
+        process_types (list): List of processing types to apply
     
     Returns:
         tuple: (successful_count, error_count)
@@ -350,9 +402,21 @@ def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS
     def process_single_file(filepath):
         try:
             filename = os.path.basename(filepath)
-            output_path = os.path.join(output_dir, f"soft_tissue_{filename}")
-            processed_image = preprocess_xray(filepath, output_size)
-            cv2.imwrite(output_path, processed_image)
+            base_name = os.path.splitext(filename)[0]
+            processed_image = preprocess_xray(filepath, output_size, process_types=process_types)
+            
+            # Check if multi-channel output
+            if len(processed_image.shape) == 3 and processed_image.shape[2] > 1:
+                # Save as numpy file for multi-channel data
+                output_path = os.path.join(output_dir, f"processed_{base_name}.npy")
+                np.save(output_path, processed_image)
+            else:
+                # Save as image for single channel
+                output_path = os.path.join(output_dir, f"processed_{filename}")
+                # Handle single channel stored as 3D array
+                if len(processed_image.shape) == 3:
+                    processed_image = processed_image[:, :, 0]
+                cv2.imwrite(output_path, processed_image)
             return True, filepath
         except Exception as e:
             return False, f"{filepath}: {str(e)}"
@@ -384,7 +448,7 @@ if __name__ == "__main__":
     #preprocess_filepaths_threaded(images, output_directory,3,(2500, 2048))
 
     #uncomment to test batch processing
-    preprocess_batch_soft_tissue(input_directory, output_directory)
+    preprocess_batch_soft_tissue(input_directory, output_directory, process_types=['standard','edges'])
 
     #uncommment to test single image processing with process visualization
     preprocess_xray('images/00000001_000.png', show_process=True)
