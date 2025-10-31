@@ -120,7 +120,10 @@ def export_pdf():
         c.drawString(margin, y, "Patient")
         y -= 14
         c.setFont("Helvetica", 10)
-        c.drawString(margin, y, f"Sex: {patient.get('sex','—')}    Age: {patient.get('age','—')}")
+        sex_txt = patient.get("sex","—")
+        age_txt = patient.get("age","—")
+        view_txt = patient.get("view","—")
+        c.drawString(margin, y, f"Sex: {sex_txt}    Age: {age_txt}    View: {view_txt}")
         y -= 12
 
     c.showPage()

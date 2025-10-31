@@ -95,11 +95,11 @@
     <div class="border rounded p-3 mt-3">
         <h5 class="mb-2">Patient Details</h5>
         <div class="d-flex flex-wrap">
-            <div class="mr-4 mb-2"><strong>Sex:</strong> {{ patient.sex if patient.sex is defined else '—' }}</div>
-            <div class="mr-4 mb-2"><strong>Age:</strong> {{ patient.age if patient.age is defined else '—' }}</div>
-            {% if patient.patient_id %}<div class="mr-4 mb-2"><strong>ID:</strong> {{ patient.patient_id }}</div>{%
-            endif %}
-        </div>
+          <div class="mr-4 mb-2"><strong>Sex:</strong> {{ patient.sex if patient.sex is defined else '—' }}</div>
+          <div class="mr-4 mb-2"><strong>Age:</strong> {{ patient.age if patient.age is defined else '—' }}</div>
+          <div class="mr-4 mb-2"><strong>View:</strong> {{ patient.view if patient.view is defined else '—' }}</div>
+          {% if patient.patient_id %}<div class="mr-4 mb-2"><strong>ID:</strong> {{ patient.patient_id }}</div>{% endif %}
+    </div>
     </div>
     {% endif %}
 

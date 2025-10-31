@@ -48,21 +48,31 @@
     style="width: 400px; background: #f8f9fa; text-align: center;">
 
     <div class="d-flex justify-content-between">
-      <div class="form-group" style="flex: 1; margin-right: 10px;">
-        <label for="patientSex" class="font-weight-bold d-block mb-1" style="text-align: center;">Sex</label>
-        <select id="patientSex" name="sex" class="form-control text-center" required>
-          <option value="" selected disabled>Choose...</option>
-          <option value="Female">Female</option>
-          <option value="Male">Male</option>
-        </select>
-         <div class="invalid-feedback">Please select the patient's sex.</div>
-      </div>
+  <div class="form-group" style="flex: 1; margin-right: 10px;">
+    <label for="patientSex" class="font-weight-bold d-block mb-1" style="text-align: center;">Sex</label>
+    <select id="patientSex" name="sex" class="form-control text-center" required>
+      <option value="" selected disabled>Choose.</option>
+      <option value="Female">Female</option>
+      <option value="Male">Male</option>
+    </select>
+    <div class="invalid-feedback">Please select the patient's sex.</div>
+  </div>
 
-      <div class="form-group" style="flex: 1; margin-left: 10px;">
-        <label for="patientAge" class="font-weight-bold d-block mb-1" style="text-align: center;">Age</label>
-        <select id="patientAge" name="age" class="form-control text-center" required></select>
-      </div>
-    </div>
+  <div class="form-group" style="flex: 1; margin-left: 10px; margin-right: 10px;">
+    <label for="patientAge" class="font-weight-bold d-block mb-1" style="text-align: center;">Age</label>
+    <select id="patientAge" name="age" class="form-control text-center" required></select>
+  </div>
+
+  <div class="form-group" style="flex: 1; margin-left: 10px;">
+    <label for="patientView" class="font-weight-bold d-block mb-1" style="text-align: center;">View</label>
+    <select id="patientView" name="view" class="form-control text-center" required>
+      <option value="" selected disabled>Choose.</option>
+      <option value="AP">AP</option>
+      <option value="PA">PA</option>
+    </select>
+    <div class="invalid-feedback">Please select the X-ray view.</div>
+  </div>
+</div>
 
   </div>
 </form>
