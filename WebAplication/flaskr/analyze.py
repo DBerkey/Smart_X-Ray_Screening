@@ -1,5 +1,5 @@
 # flaskr/analyze.py
-import imghdr
+from PIL import Image, UnidentifiedImageError
 import json
 import shutil
 import mimetypes
@@ -32,10 +32,16 @@ def _interfaces_paths() -> Tuple[Path, Path, Path, Path]:
     processed_dir.mkdir(parents=True, exist_ok=True)
     return root, input_dir, preproc_dir, processed_dir
 
-# Check if file is a valid image
 def _is_valid_image(path: Path) -> bool:
-    kind = imghdr.what(path)
-    return kind in {"png", "jpeg", "gif", "bmp"}
+    try:
+        with Image.open(path) as im:
+            im.verify()  # validate file integrity
+            fmt = (im.format or "").lower()
+        return fmt in {"png", "jpeg", "jpg", "gif", "bmp"}
+    except UnidentifiedImageError:
+        return False
+    except Exception:
+        return False
 
 # Save file to Interfaces/Input, returns path
 def _save_direct_to_interfaces_input(upload_file) -> Path:
@@ -163,10 +169,11 @@ def analyze_upload():
     # Parse patient fields
     sex = request.form.get("sex") or None
     age_raw = request.form.get("age")
+    view = request.form.get("view") or None
 
     # Enforce required fields
-    if not sex or not age_raw:
-        abort(400, description="Sex and age are required.")
+    if not sex or not age_raw or not view:
+        abort(400, description="Sex, age, and view are required.")
 
     age = _coerce_age(age_raw)
     if age is None:
@@ -188,6 +195,7 @@ def analyze_upload():
         "Image_Index": secure_filename(f.filename),  # original name
         "Age": age,
         "Sex": sex,
+        "View": view,
         "ImageSize": {"width": width, "height": height} if width and height else None,
         "ImagePixelSpacing": [0, 0],
         "Uploaded_Filename": saved_in_input.name,
@@ -227,7 +235,7 @@ def analyze_upload():
     "image_name": image_name,
     "num_findings": len(findings),
     "findings": findings,
-    "patient": {"sex": sex, "age": age} if (sex or age is not None) else None,
+    "patient": {"sex": sex, "age": age, "view": view} if (sex or age or view is not None) else None,
     "generated_at": _now_utc_z(),
     }
     session["latest_result"] = payload
