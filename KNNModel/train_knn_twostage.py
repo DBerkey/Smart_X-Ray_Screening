@@ -15,6 +15,7 @@ from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.manifold import TSNE
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
@@ -424,8 +425,8 @@ if __name__ == "__main__":
     n_pca_components = 1000     
     batch_size = 1000           # Must be >= n_pca_components for IncrementalPCA 
     
-    LOAD_EXISTING_PCA = False    # Set to True to load existing PCA or LDA model
-    LOAD_EXISTING_DATA = False   # Set to True to skip image loading and PCA or LDAtransformation
+    LOAD_EXISTING_PCA = True    # Set to True to load existing PCA or LDA model
+    LOAD_EXISTING_DATA = True   # Set to True to skip image loading and PCA or LDAtransformation
 
     PCAUSE = False              # Set to True to use PCA instead of LDA
     # =========================
@@ -627,6 +628,18 @@ if __name__ == "__main__":
             with open(lda_model_path, 'wb') as f:
                 pickle.dump(lda, f)
 
+    # ===== STAGE 1: BINARY CLASSIFICATION (SVM) =====
+    print("\n" + "="*60)
+    print("STAGE 1: BINARY CLASSIFICATION (Finding vs No Finding)")
+    print("="*60)
+
+    # Create binary labels
+    Y_train_binary = create_binary_labels(train[1])
+    Y_test_binary = create_binary_labels(test[1])
+
+    print(f"\nTraining set - No Finding: {np.sum(Y_train_binary == 0)}, Has Finding: {np.sum(Y_train_binary == 1)}")
+    print(f"Test set - No Finding: {np.sum(Y_test_binary == 0)}, Has Finding: {np.sum(Y_test_binary == 1)}")
+
     print("\n=== t-SNE Visualization (Binary Labels) ===")
     # Use the encoded features after dimensionality reduction (X_train_encoded)
     # For speed, use a subset if dataset is large
@@ -645,166 +658,76 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.show()
 
-    # ===== STAGE 1: BINARY CLASSIFICATION =====
-    print("\n" + "="*60)
-    print("STAGE 1: BINARY CLASSIFICATION (Finding vs No Finding)")
-    print("="*60)
-    
-    # Create binary labels
-    Y_train_binary = create_binary_labels(train[1])
-    Y_test_binary = create_binary_labels(test[1])
-    
-    print(f"\nTraining set - No Finding: {np.sum(Y_train_binary == 0)}, Has Finding: {np.sum(Y_train_binary == 1)}")
-    print(f"Test set - No Finding: {np.sum(Y_test_binary == 0)}, Has Finding: {np.sum(Y_test_binary == 1)}")
-    
-    # Test different configurations for Stage 1
-    stage1_configs = [
-        {'n_neighbors': 5, 'metric': 'euclidean', 'weights': 'distance'},
-        {'n_neighbors': 10, 'metric': 'euclidean', 'weights': 'distance'},
-        {'n_neighbors': 20, 'metric': 'euclidean', 'weights': 'distance'},
-        {'n_neighbors': 5, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 10, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 20, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 5, 'metric': 'minkowski', 'weights': 'distance'},
-        {'n_neighbors': 10, 'metric': 'minkowski', 'weights': 'distance'},
-        {'n_neighbors': 20, 'metric': 'minkowski', 'weights': 'distance'}
-    ]
-    
-    print(f"\nTesting {len(stage1_configs)} configurations for Stage 1...")
-    
-    best_stage1_accuracy = 0
-    best_stage1_config = None
-    best_stage1_f1 = 0
-    
-    for i, config in enumerate(stage1_configs):
-        print(f"\n[{i+1}/{len(stage1_configs)}] Testing: k={config['n_neighbors']}, metric={config['metric']}, weights={config['weights']}")
-        
-        knn_stage1 = train_knn_model(
-            X_train_encoded, 
-            Y_train_binary,
-            n_neighbors=config['n_neighbors'],
-            metric=config['metric'],
-            weights=config['weights']
-        )
-        
-        Y_pred = knn_stage1.predict(X_test_encoded)
-        accuracy = accuracy_score(Y_test_binary, Y_pred)
-        f1 = f1_score(Y_test_binary, Y_pred, average='weighted')
-        
-        print(f"  Accuracy: {accuracy * 100:.2f}%, F1 (weighted): {f1:.4f}")
-        
-        # Prefer balanced F1 score over raw accuracy
-        if f1 > best_stage1_f1:
-            best_stage1_accuracy = accuracy
-            best_stage1_f1 = f1
-            best_stage1_config = config
-    
-    print("\n" + "="*60)
-    print("BEST STAGE 1 CONFIGURATION")
-    print("="*60)
-    print(f"k={best_stage1_config['n_neighbors']}, metric={best_stage1_config['metric']}, weights={best_stage1_config['weights']}")
-    print(f"Accuracy: {best_stage1_accuracy * 100:.2f}%, F1: {best_stage1_f1:.4f}")
-    
-    # Train final Stage 1 model
-    print("\n=== Training Final Stage 1 Model ===")
-    stage1_model = train_knn_model(
-        X_train_encoded, Y_train_binary,
-        n_neighbors=best_stage1_config['n_neighbors'],
-        metric=best_stage1_config['metric'],
-        weights=best_stage1_config['weights']
-    )
-    
-    evaluate_binary_model(stage1_model, X_test_encoded, Y_test_binary, "Stage 1 Final Model")
-    
+    # SVM configuration for binary classification
+    svm_config = {
+        'C': 1.0,
+        'kernel': 'rbf',
+        'gamma': 'scale',
+        'probability': False
+    }
+
+    print("\nTraining SVM for Stage 1...")
+    stage1_model = SVC(**svm_config)
+    stage1_model.fit(X_train_encoded, Y_train_binary)
+
+    evaluate_binary_model(stage1_model, X_test_encoded, Y_test_binary, "Stage 1 Final Model (SVM)")
+
     # Save Stage 1 model
-    stage1_model_path = os.path.join(DATA_DIRECTORY_PATH, "knn_stage1_binary.pkl")
+    stage1_model_path = os.path.join(DATA_DIRECTORY_PATH, "svm_stage1_binary.pkl")
     with open(stage1_model_path, 'wb') as f:
         pickle.dump(stage1_model, f)
-    print(f"\n✓ Stage 1 model saved to {stage1_model_path}")
+    print(f"\n✓ Stage 1 SVM model saved to {stage1_model_path}")
     
-    # ===== STAGE 2: MULTI-LABEL CLASSIFICATION =====
+
+
+    # ===== STAGE 2: MULTI-LABEL CLASSIFICATION (KNN) =====
     print("\n" + "="*60)
-    print("STAGE 2: MULTI-LABEL CLASSIFICATION (Specific Conditions)")
+    print("STAGE 2: MULTI-LABEL CLASSIFICATION (Specific Conditions, KNN)")
     print("="*60)
-    
+
     # Filter training data to only include cases with findings
     has_finding_train = train[1] != 'No Finding'
     X_train_stage2 = X_train_encoded[has_finding_train]
     y_train_stage2 = train[1][has_finding_train]
-    
+
     has_finding_test = test[1] != 'No Finding'
     X_test_stage2 = X_test_encoded[has_finding_test]
     y_test_stage2 = test[1][has_finding_test]
-    
+
     print(f"\nStage 2 Training samples: {len(X_train_stage2)}")
     print(f"Stage 2 Test samples: {len(X_test_stage2)}")
-    
+
     # Encode labels (excluding "No Finding")
     Y_train_stage2, mlb = encode_predictor_labels(y_train_stage2, exclude_no_finding=True)
     Y_test_stage2, _ = encode_predictor_labels(y_test_stage2, exclude_no_finding=True)
-    
+
     print(f"Number of condition labels: {len(mlb.classes_)}")
     print(f"Labels: {mlb.classes_}")
-    
-    # Test different configurations for Stage 2
-    stage2_configs = [
-        {'n_neighbors': 200, 'metric': 'euclidean', 'weights': 'distance'},
-        {'n_neighbors': 500, 'metric': 'euclidean', 'weights': 'distance'},
-        {'n_neighbors': 1000, 'metric': 'euclidean', 'weights': 'distance'},
-        {'n_neighbors': 200, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 500, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 1000, 'metric': 'manhattan', 'weights': 'distance'},
-    ]
-    
-    print(f"\nTesting {len(stage2_configs)} configurations for Stage 2...")
-    
-    best_stage2_f1_macro = 0
-    best_stage2_config = None
-    
-    for i, config in enumerate(stage2_configs):
-        print(f"\n[{i+1}/{len(stage2_configs)}] Testing: k={config['n_neighbors']}, metric={config['metric']}, weights={config['weights']}")
-        
-        knn_stage2 = train_knn_model(
-            X_train_stage2, 
-            Y_train_stage2,
-            n_neighbors=config['n_neighbors'],
-            metric=config['metric'],
-            weights=config['weights']
-        )
-        
-        Y_pred = knn_stage2.predict(X_test_stage2)
-        f1_macro = f1_score(Y_test_stage2, Y_pred, average='macro', zero_division=0)
-        f1_micro = f1_score(Y_test_stage2, Y_pred, average='micro', zero_division=0)
-        
-        print(f"  F1 Macro: {f1_macro:.4f}, F1 Micro: {f1_micro:.4f}")
-        
-        if f1_macro > best_stage2_f1_macro:
-            best_stage2_f1_macro = f1_macro
-            best_stage2_config = config
-    
-    print("\n" + "="*60)
-    print("BEST STAGE 2 CONFIGURATION")
-    print("="*60)
-    print(f"k={best_stage2_config['n_neighbors']}, metric={best_stage2_config['metric']}, weights={best_stage2_config['weights']}")
-    print(f"F1 Macro: {best_stage2_f1_macro:.4f}")
-    
-    # Train final Stage 2 model
-    print("\n=== Training Final Stage 2 Model ===")
-    stage2_model = train_knn_model(
-        X_train_stage2, Y_train_stage2,
-        n_neighbors=best_stage2_config['n_neighbors'],
-        metric=best_stage2_config['metric'],
-        weights=best_stage2_config['weights']
-    )
-    
-    evaluate_multilabel_model(stage2_model, X_test_stage2, Y_test_stage2, "Stage 2 Final Model")
-    
+
+    # KNN configuration for multi-label classification
+    knn_config = {
+        'n_neighbors': 200,
+        'metric': 'euclidean',
+        'weights': 'distance'
+    }
+
+    print("\nTraining KNN for Stage 2...")
+    stage2_model = KNeighborsClassifier(**knn_config)
+    stage2_model.fit(X_train_stage2, Y_train_stage2)
+
+    Y_pred = stage2_model.predict(X_test_stage2)
+    f1_macro = f1_score(Y_test_stage2, Y_pred, average='macro', zero_division=0)
+    f1_micro = f1_score(Y_test_stage2, Y_pred, average='micro', zero_division=0)
+    print(f"  F1 Macro: {f1_macro:.4f}, F1 Micro: {f1_micro:.4f}")
+
+    evaluate_multilabel_model(stage2_model, X_test_stage2, Y_test_stage2, "Stage 2 Final Model (KNN)")
+
     # Save Stage 2 model
     stage2_model_path = os.path.join(DATA_DIRECTORY_PATH, "knn_stage2_multilabel.pkl")
     with open(stage2_model_path, 'wb') as f:
         pickle.dump(stage2_model, f)
-    print(f"\n✓ Stage 2 model saved to {stage2_model_path}")
-    
+    print(f"\n✓ Stage 2 KNN model saved to {stage2_model_path}")
+
     # Save label encoder
     mlb_path = os.path.join(DATA_DIRECTORY_PATH, "label_encoder_stage2.pkl")
     with open(mlb_path, 'wb') as f:
@@ -835,14 +758,14 @@ if __name__ == "__main__":
     print(f"Training samples: {len(X_train_encoded)}")
     print(f"Test samples: {len(X_test_encoded)}")
     print(f"Image resolution: {img_size}")
-    if PCAUSE:
+    if 'pca' in locals() and PCAUSE:
         print(f"PCA components: {n_pca_components}")
         print(f"PCA explained variance: {pca.explained_variance_ratio_.sum():.4f} ({pca.explained_variance_ratio_.sum()*100:.2f}%)")
     else:
         print(f"Dimensionality reduction: PCA (n={n_pca_components}) + LDA")
-        print(f"PCA explained variance: {pca.explained_variance_ratio_.sum():.4f} ({pca.explained_variance_ratio_.sum()*100:.2f}%)")
-    print(f"\nStage 1 (Binary): k={best_stage1_config['n_neighbors']}, {best_stage1_config['metric']}")
-    print(f"Stage 2 (Multi-label): k={best_stage2_config['n_neighbors']}, {best_stage2_config['metric']}")
+        print("PCA explained variance: [not available]")
+    print(f"\nStage 1 (Binary): SVM config: {svm_config}")
+    print(f"Stage 2 (Multi-label): KNN config: {knn_config}")
     print(f"\nTwo-Stage System Performance:")
     print(f"  F1 Macro: {f1_macro:.4f}")
     print(f"  F1 Micro: {f1_micro:.4f}")
