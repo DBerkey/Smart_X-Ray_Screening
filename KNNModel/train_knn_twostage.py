@@ -417,7 +417,7 @@ def fit_lda_model(X_train, Y_train, n_components=10):
 if __name__ == "__main__":
     # ===== CONFIGURATION =====
     DATA_DIRECTORY_PATH = "C:/Users/berke/OneDrive/Documenten/school/UiA/Smart_X-Ray_Screening_img-data"
-    images_folder_path = DATA_DIRECTORY_PATH + "/images_M-preprocessed"
+    images_folder_path = DATA_DIRECTORY_PATH + "/images_M-preprocessed-2d"
     images_metadata_path = DATA_DIRECTORY_PATH + "/Data_Entry_2017_v2020.csv"
     
     # Image processing settings
@@ -440,15 +440,14 @@ if __name__ == "__main__":
     
     df = pd.read_csv(images_metadata_path)
 
-    # Filter the metadata to only include images present in the folder
-    image_files = set(os.listdir(images_folder_path))
-    available_indices = set()
-    for filename in image_files:
-        if filename.startswith("soft_tissue_") and filename.endswith(".png"):
-            img_index = filename[len("soft_tissue_"):]
-            available_indices.add(img_index)
-    
-    df = df[df['Image Index'].astype(str).isin(available_indices)]
+    # Filter the metadata to only include images present as .npy files
+    npy_dir = images_folder_path
+    npy_files = sorted([f for f in os.listdir(npy_dir) if f.endswith('.npy')])
+    # Extract numeric part with suffix from .npy filenames
+    available_indices = [f.replace('processed_', '').replace('.npy', '') for f in npy_files]  # processed_00000001_000.npy -> 00000001_000
+    # Remove .png from CSV and match full numeric part with suffix
+    df['Image Index Num'] = df['Image Index'].str.replace('.png', '')  # 00000001_000.png -> 00000001_000
+    df = df[df['Image Index Num'].isin(available_indices)]
     
     # Print label distribution
     print("\n=== Label Distribution ===")
@@ -459,7 +458,8 @@ if __name__ == "__main__":
 
     x = df[['Image Index', 'Patient Age', 'Patient Sex', 'View Position']]
     y = df['Finding Labels']
-
+    if len(x) == 0 or len(y) == 0:
+        raise ValueError("No samples found after filtering metadata for available .npy files. Check your file naming and metadata consistency.")
     train, test, eval = split_data_train_test_eval(x, y)
 
     # Save evaluation data to CSV for application use
@@ -469,164 +469,76 @@ if __name__ == "__main__":
     eval_df.to_csv(eval_csv_path, index=False)
     print(f"\nEvaluation data saved to {eval_csv_path}")
 
-    # Check if we should load existing processed data
-    processed_data_path = os.path.join(DATA_DIRECTORY_PATH, "processed_features.npz")
-    pca_model_path = os.path.join(DATA_DIRECTORY_PATH, "pca_model.pkl")
-    lda_model_path = os.path.join(DATA_DIRECTORY_PATH, "lda_model.pkl")
-    scaler_path = os.path.join(DATA_DIRECTORY_PATH, "feature_scaler.pkl")
-    
-    if LOAD_EXISTING_DATA and os.path.exists(processed_data_path) and os.path.exists(scaler_path):
-        print("\n=== Loading Pre-processed Data ===")
-        print(f"Loading from {processed_data_path}")
-        
-        loaded_data = np.load(processed_data_path)
-        X_train_encoded = loaded_data['X_train_encoded']
-        X_test_encoded = loaded_data['X_test_encoded']
-        
-        if PCAUSE:
-            with open(pca_model_path, 'rb') as f:
-                pca = pickle.load(f)
-        else:
-            with open(lda_model_path, 'rb') as f:
-                lda = pickle.load(f)
-        with open(scaler_path, 'rb') as f:
-            feature_scaler = pickle.load(f)
-            
-        print(f"✓ Loaded preprocessed data: X_train shape = {X_train_encoded.shape}, X_test shape = {X_test_encoded.shape}")
-        if PCAUSE:
-            try:
-                explained = pca.explained_variance_ratio_.sum()
-                print(f"✓ PCA explained variance: {explained:.4f} ({explained*100:.2f}%)")
-            except Exception:
-                print("✓ PCA model loaded (could not read explained variance)")
-        else:
-            print(f"✓ LDA model loaded (n_components={getattr(lda, 'n_components', 'unknown')})")
-        
+
+    # ===== LOAD FEATURES FROM NUMPY FILE (GREYSCALE + EDGES) =====
+
+    # ===== LOAD FEATURES FROM MULTIPLE NUMPY FILES =====
+    npy_dir = os.path.join(DATA_DIRECTORY_PATH, "images_M-preprocessed-2d")
+    print(f"\n=== Loading Features from directory: {npy_dir} ===")
+    npy_files = sorted([f for f in os.listdir(npy_dir) if f.endswith('.npy')])
+    all_features = []
+    for fname in npy_files:
+        try:
+            arr = np.load(os.path.join(npy_dir, fname))
+            if arr.size == 0:
+                print(f"Warning: {fname} is empty, skipping.")
+                continue
+            # arr shape: (2, img_size_flat) -> [0]=greyscale, [1]=edges
+            combined = np.concatenate([arr[0], arr[1]])
+            all_features.append(combined)
+        except Exception as e:
+            print(f"Warning: {fname} could not be loaded ({e}), skipping.")
+            continue
+    if len(all_features) == 0:
+        raise ValueError("No valid feature arrays found. All .npy files may be empty or corrupt.")
+    X_all = np.stack(all_features)
+
+
+    # Split into train/test/eval using indices from previous split
+    train_idx = train[0].index if hasattr(train[0], 'index') else np.arange(len(train[0]))
+    test_idx = test[0].index if hasattr(test[0], 'index') else np.arange(len(test[0]))
+
+    X_train_raw = X_all[train_idx]
+    X_test_raw = X_all[test_idx]
+
+    # ===== Apply PCA and/or LDA to features =====
+    if PCAUSE:
+        print("\n=== Fitting PCA on training features ===")
+        pca = IncrementalPCA(n_components=n_pca_components)
+        pca.fit(X_train_raw)
+        X_train_pca = pca.transform(X_train_raw)
+        X_test_pca = pca.transform(X_test_raw)
+        print(f"PCA explained variance: {pca.explained_variance_ratio_.sum():.4f} ({pca.explained_variance_ratio_.sum()*100:.2f}%)")
+        # Optionally save PCA model
+        with open(os.path.join(DATA_DIRECTORY_PATH, "pca_model.pkl"), 'wb') as f:
+            pickle.dump(pca, f)
+        # Use PCA output for next steps
+        X_train_encoded = X_train_pca
+        X_test_encoded = X_test_pca
     else:
-        # Process from scratch
-        if PCAUSE:
-            if LOAD_EXISTING_PCA and os.path.exists(pca_model_path):
-                print("\n=== Loading Existing PCA Model ===")
-                with open(pca_model_path, 'rb') as f:
-                    pca = pickle.load(f)
-                print(f"✓ Loaded PCA model with {pca.n_components} components")
-                try:
-                    explained = pca.explained_variance_ratio_.sum()
-                    print(f"✓ Explained variance: {explained:.4f} ({explained*100:.2f}%)")
-                except Exception:
-                    pass
-            else:
-                print("\n=== Training PCA Model ===")
-                # Fit PCA on training data using incremental approach
-                pca = fit_pca_incremental(images_folder_path, pd.DataFrame(train[0]), img_size, 
-                                          n_components=n_pca_components, batch_size=batch_size)
-                # Save PCA model
-                print(f"✓ Saving PCA model to {pca_model_path}")
-                with open(pca_model_path, 'wb') as f:
-                    pickle.dump(pca, f)
-
-            # Transform training and test data using PCA
-            print("\n=== Processing Training Data (PCA) ===")
-            X_train = transform_features_batched(images_folder_path, pd.DataFrame(train[0]), 
-                                                 img_size, pca, batch_size=batch_size)
-            
-            print("\n=== Processing Test Data (PCA) ===")
-            X_test = transform_features_batched(images_folder_path, pd.DataFrame(test[0]), 
-                                                img_size, pca, batch_size=batch_size)
-
-            # Standardize PCA features
-            print("\n=== Standardizing Features ===")
-            X_train_std, X_test_std, _, feature_scaler = standardize_pca_features(X_train, X_test)
-            print(f"Features standardized (mean≈0, std≈1)")
-
-            # Combine with metadata
-            X_train_encoded = encode_scale_input_features(pd.DataFrame(train[0]), X_train_std)
-            X_test_encoded = encode_scale_input_features(pd.DataFrame(test[0]), X_test_std)
-
-            # Save processed data and scaler
-            print(f"\n=== Saving Processed Data ===")
-            np.savez_compressed(processed_data_path, 
-                               X_train_encoded=X_train_encoded,
-                               X_test_encoded=X_test_encoded)
-            print(f"✓ Saved to {processed_data_path}")
-            print(f"✓ Saving feature scaler to {scaler_path}")
-            with open(scaler_path, 'wb') as f:
-                pickle.dump(feature_scaler, f)
-
-        else:
-            # LDA path - First reduce dimensions with PCA, then apply LDA
-            # This avoids memory issues with high-dimensional data
-            print("\n=== Preparing data for PCA+LDA (two-step dimensionality reduction) ===")
-            
-            # Step 1: Apply PCA first to reduce dimensions
-            if LOAD_EXISTING_PCA and os.path.exists(pca_model_path):
-                print("\n=== Loading Existing PCA Model ===")
-                with open(pca_model_path, 'rb') as f:
-                    pca = pickle.load(f)
-                print(f"✓ Loaded PCA model with {pca.n_components} components")
-                try:
-                    explained = pca.explained_variance_ratio_.sum()
-                    print(f"✓ Explained variance: {explained:.4f} ({explained*100:.2f}%)")
-                except Exception:
-                    pass
-            else:
-                print("\n=== Training PCA Model (Step 1 of PCA+LDA) ===")
-                # Fit PCA on training data using incremental approach
-                pca = fit_pca_incremental(images_folder_path, pd.DataFrame(train[0]), img_size, 
-                                          n_components=n_pca_components, batch_size=batch_size)
-                # Save PCA model
-                print(f"✓ Saving PCA model to {pca_model_path}")
-                with open(pca_model_path, 'wb') as f:
-                    pickle.dump(pca, f)
-
-            # Transform data using PCA
-            print("\n=== Processing Training Data with PCA ===")
-            X_train_pca = transform_features_batched(images_folder_path, pd.DataFrame(train[0]), 
-                                                 img_size, pca, batch_size=batch_size)
-            
-            print("\n=== Processing Test Data with PCA ===")
-            X_test_pca = transform_features_batched(images_folder_path, pd.DataFrame(test[0]), 
-                                                img_size, pca, batch_size=batch_size)
-
-            # Step 2: Apply LDA on PCA-reduced features
-            print("\n=== Applying LDA on PCA-reduced features (Step 2 of PCA+LDA) ===")
-            Y_train_binary = create_binary_labels(train[1])
-
-            # Determine allowed number of components for LDA: at most n_classes-1
-            unique_classes = np.unique(Y_train_binary)
-            max_lda_components = max(1, len(unique_classes) - 1)
-            # LDA components cannot exceed n_classes-1 (which is 1 for binary classification)
-            n_lda_components = min(max_lda_components, 1)
-
-            print(f"Fitting LDA with n_components={n_lda_components} (max allowed: {max_lda_components}) on PCA-reduced data with shape {X_train_pca.shape}")
-            lda = LinearDiscriminantAnalysis(n_components=n_lda_components)
-            lda.fit(X_train_pca, Y_train_binary)
-
-            # Transform data using LDA
-            X_train_lda = lda.transform(X_train_pca)
-            X_test_lda = lda.transform(X_test_pca)
-
-            # Standardize LDA features
-            print("\n=== Standardizing LDA Features ===")
-            X_train_std, X_test_std, _, feature_scaler = standardize_pca_features(X_train_lda, X_test_lda)
-
-            # Combine with metadata
-            X_train_encoded = encode_scale_input_features(pd.DataFrame(train[0]), X_train_std)
-            X_test_encoded = encode_scale_input_features(pd.DataFrame(test[0]), X_test_std)
-
-            # Save processed data and LDA model
-            print(f"\n=== Saving Processed Data and LDA model ===")
-            np.savez_compressed(processed_data_path, 
-                               X_train_encoded=X_train_encoded,
-                               X_test_encoded=X_test_encoded)
-            print(f"✓ Saved to {processed_data_path}")
-            print(f"✓ Saving feature scaler to {scaler_path}")
-            with open(scaler_path, 'wb') as f:
-                pickle.dump(feature_scaler, f)
-
-            print(f"✓ Saving LDA model to {lda_model_path}")
-            with open(lda_model_path, 'wb') as f:
-                pickle.dump(lda, f)
+        # LDA path - First reduce dimensions with PCA, then apply LDA
+        print("\n=== Fitting PCA for LDA pipeline ===")
+        pca = IncrementalPCA(n_components=n_pca_components)
+        pca.fit(X_train_raw)
+        X_train_pca = pca.transform(X_train_raw)
+        X_test_pca = pca.transform(X_test_raw)
+        print(f"PCA explained variance: {pca.explained_variance_ratio_.sum():.4f} ({pca.explained_variance_ratio_.sum()*100:.2f}%)")
+        # Fit LDA on binary labels
+        Y_train_binary = create_binary_labels(train[1])
+        unique_classes = np.unique(Y_train_binary)
+        max_lda_components = max(1, len(unique_classes) - 1)
+        n_lda_components = min(max_lda_components, 1)
+        print(f"\n=== Fitting LDA on PCA-reduced features ===")
+        lda = LinearDiscriminantAnalysis(n_components=n_lda_components)
+        lda.fit(X_train_pca, Y_train_binary)
+        X_train_lda = lda.transform(X_train_pca)
+        X_test_lda = lda.transform(X_test_pca)
+        # Optionally save LDA model
+        with open(os.path.join(DATA_DIRECTORY_PATH, "lda_model.pkl"), 'wb') as f:
+            pickle.dump(lda, f)
+        # Use LDA output for next steps
+        X_train_encoded = X_train_lda
+        X_test_encoded = X_test_lda
 
     # ===== STAGE 1: BINARY CLASSIFICATION (SVM) =====
     print("\n" + "="*60)
