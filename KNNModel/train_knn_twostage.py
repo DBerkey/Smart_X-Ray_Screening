@@ -447,7 +447,7 @@ if __name__ == "__main__":
     available_indices = [f.replace('processed_', '').replace('.npy', '') for f in npy_files]  # processed_00000001_000.npy -> 00000001_000
     # Remove .png from CSV and match full numeric part with suffix
     df['Image Index Num'] = df['Image Index'].str.replace('.png', '')  # 00000001_000.png -> 00000001_000
-    df = df[df['Image Index Num'].isin(available_indices)]
+    df = df[df['Image Index Num'].isin(available_indices)].reset_index(drop=True)
     
     # Print label distribution
     print("\n=== Label Distribution ===")
@@ -483,12 +483,18 @@ if __name__ == "__main__":
             if arr.size == 0:
                 print(f"Warning: {fname} is empty, skipping.")
                 continue
-            # arr shape: (2, img_size_flat) -> [0]=greyscale, [1]=edges
-            combined = np.concatenate([arr[0], arr[1]])
-            all_features.append(combined)
+            # arr shape: (2, height, width)
+            flat_grey = arr[0].flatten()
+            flat_edge = arr[1].flatten()
+            # Store as two separate features per sample
+            sample_features = np.stack([flat_grey, flat_edge])  # shape (2, num_features)
+            all_features.append(sample_features)
         except Exception as e:
             print(f"Warning: {fname} could not be loaded ({e}), skipping.")
             continue
+    if len(all_features) == 0:
+        raise ValueError("No valid feature arrays found. All .npy files may be empty or corrupt.")
+    X_all = np.stack(all_features)  # shape (num_samples, 2, num_features)
     if len(all_features) == 0:
         raise ValueError("No valid feature arrays found. All .npy files may be empty or corrupt.")
     X_all = np.stack(all_features)
@@ -498,8 +504,9 @@ if __name__ == "__main__":
     train_idx = train[0].index if hasattr(train[0], 'index') else np.arange(len(train[0]))
     test_idx = test[0].index if hasattr(test[0], 'index') else np.arange(len(test[0]))
 
-    X_train_raw = X_all[train_idx]
-    X_test_raw = X_all[test_idx]
+    # Flatten features: (num_samples, 2, num_features) -> (num_samples, 2*num_features)
+    X_train_raw = X_all[train_idx].reshape(len(train_idx), -1)
+    X_test_raw = X_all[test_idx].reshape(len(test_idx), -1)
 
     # ===== Apply PCA and/or LDA to features =====
     if PCAUSE:
@@ -559,16 +566,19 @@ if __name__ == "__main__":
     idx = np.random.choice(len(X_train_encoded), tsne_sample_size, replace=False)
     X_vis = X_train_encoded[idx]
     y_vis = Y_train_binary[idx]
-    tsne = TSNE(n_components=2, random_state=42, perplexity=30)
-    X_tsne = tsne.fit_transform(X_vis)
-    plt.figure(figsize=(8,6))
-    scatter = plt.scatter(X_tsne[:,0], X_tsne[:,1], c=y_vis, cmap='coolwarm', alpha=0.6)
-    plt.title('t-SNE Visualization of Training Data (Binary Labels)')
-    plt.xlabel('t-SNE 1')
-    plt.ylabel('t-SNE 2')
-    plt.legend(*scatter.legend_elements(), title="Class")
-    plt.tight_layout()
-    plt.show()
+    if X_vis.shape[0] > 1 and X_vis.shape[1] > 1:
+        tsne = TSNE(n_components=2, random_state=42, perplexity=30)
+        X_tsne = tsne.fit_transform(X_vis)
+        plt.figure(figsize=(8,6))
+        scatter = plt.scatter(X_tsne[:,0], X_tsne[:,1], c=y_vis, cmap='coolwarm', alpha=0.6)
+        plt.title('t-SNE Visualization of Training Data (Binary Labels)')
+        plt.xlabel('t-SNE 1')
+        plt.ylabel('t-SNE 2')
+        plt.legend(*scatter.legend_elements(), title="Class")
+        plt.tight_layout()
+        plt.show()
+    else:
+        print("Not enough samples or features for t-SNE visualization.")
 
     # SVM configuration for binary classification
     svm_config = {
