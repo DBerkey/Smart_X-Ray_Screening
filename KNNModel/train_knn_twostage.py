@@ -559,24 +559,24 @@ if __name__ == "__main__":
     print(f"\nTraining set - No Finding: {np.sum(Y_train_binary == 0)}, Has Finding: {np.sum(Y_train_binary == 1)}")
     print(f"Test set - No Finding: {np.sum(Y_test_binary == 0)}, Has Finding: {np.sum(Y_test_binary == 1)}")
 
-    print("\n=== t-SNE Visualization (Binary Labels) ===")
-    # Use the encoded features after dimensionality reduction (X_train_encoded)
-    # For speed, use a subset if dataset is large
-    tsne_sample_size = min(2000, len(X_train_encoded))
-    idx = np.random.choice(len(X_train_encoded), tsne_sample_size, replace=False)
-    X_vis = X_train_encoded[idx]
+    print("\n=== t-SNE Visualization (Binary Labels, PCA features) ===")
+    # Use PCA-reduced features for t-SNE visualization
+    tsne_sample_size = min(2000, len(X_train_pca))
+    idx = np.random.choice(len(X_train_pca), tsne_sample_size, replace=False)
+    X_vis = X_train_pca[idx]
     y_vis = Y_train_binary[idx]
     if X_vis.shape[0] > 1 and X_vis.shape[1] > 1:
         tsne = TSNE(n_components=2, random_state=42, perplexity=30)
         X_tsne = tsne.fit_transform(X_vis)
         plt.figure(figsize=(8,6))
         scatter = plt.scatter(X_tsne[:,0], X_tsne[:,1], c=y_vis, cmap='coolwarm', alpha=0.6)
-        plt.title('t-SNE Visualization of Training Data (Binary Labels)')
+        plt.title('t-SNE Visualization of Training Data (Binary Labels, PCA features)')
         plt.xlabel('t-SNE 1')
         plt.ylabel('t-SNE 2')
         plt.legend(*scatter.legend_elements(), title="Class")
         plt.tight_layout()
         plt.show()
+        print(f"✓ t-SNE plot saved to {os.path.join(DATA_DIRECTORY_PATH, 'tsne_visualization.png')}")
     else:
         print("Not enough samples or features for t-SNE visualization.")
 
