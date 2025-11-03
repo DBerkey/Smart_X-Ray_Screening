@@ -15,6 +15,7 @@ from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.manifold import TSNE
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
@@ -270,37 +271,50 @@ def train_knn_model(X_train, Y_train, n_neighbors=5, metric='manhattan', weights
     knn.fit(X_train, Y_train)
     return knn
 
+def train_svm_model(X_train, Y_train, config):
+    """
+    Trains an SVM model with the given config.
+    Param:
+        X_train: Training features.
+        Y_train: Training labels.
+        config: Dictionary of SVM parameters.
+    Returns:
+        Trained SVM model.
+    """
+    svm = SVC(**config)
+    svm.fit(X_train, Y_train)
+    return svm
+
 def evaluate_binary_model(model, X_test, Y_test, name="Binary Model"):
     """
     Evaluates binary classification model.
     """
     Y_pred = model.predict(X_test)
     accuracy = accuracy_score(Y_test, Y_pred)
-    
-    # Get precision, recall, f1 for both classes
     precision, recall, f1, support = precision_recall_fscore_support(
         Y_test, Y_pred, average=None, zero_division=0
     )
-    
     print(f"\n{name} Evaluation:")
     print(f"  Accuracy: {accuracy * 100:.2f}%")
-    print(f"\n  Class 0 (No Finding):")
-    print(f"    Precision: {precision[0]:.4f}")
-    print(f"    Recall: {recall[0]:.4f}")
-    print(f"    F1-Score: {f1[0]:.4f}")
-    print(f"    Support: {support[0]}")
-    print(f"\n  Class 1 (Has Finding):")
-    print(f"    Precision: {precision[1]:.4f}")
-    print(f"    Recall: {recall[1]:.4f}")
-    print(f"    F1-Score: {f1[1]:.4f}")
-    print(f"    Support: {support[1]}")
-    
-    # Confusion matrix
+    if isinstance(precision, (np.ndarray, list, tuple)) and len(precision) == 2:
+        print(f"\n  Class 0 (No Finding):")
+        print(f"    Precision: {precision[0]:.4f}")
+        print(f"    Recall: {recall[0]:.4f}")
+        print(f"    F1-Score: {f1[0]:.4f}")
+        print(f"    Support: {support[0]}")
+        print(f"\n  Class 1 (Has Finding):")
+        print(f"    Precision: {precision[1]:.4f}")
+        print(f"    Recall: {recall[1]:.4f}")
+        print(f"    F1-Score: {f1[1]:.4f}")
+        print(f"    Support: {support[1]}")
+    else:
+        print(f"  Precision: {precision:.4f}")
+        print(f"  Recall: {recall:.4f}")
+        print(f"  F1-Score: {f1:.4f}")
+        print(f"  Support: {support}")
     cm = confusion_matrix(Y_test, Y_pred)
     print(f"\n  Confusion Matrix:")
-    print(f"    [[TN={cm[0,0]}, FP={cm[0,1]}],")
-    print(f"     [FN={cm[1,0]}, TP={cm[1,1]}]]")
-    
+    print(cm)
     return accuracy, Y_pred, precision, recall, f1
 
 def evaluate_multilabel_model(model, X_test, Y_test, name="Multi-label Model"):
@@ -416,7 +430,7 @@ def fit_lda_model(X_train, Y_train, n_components=10):
 if __name__ == "__main__":
     # ===== CONFIGURATION =====
     DATA_DIRECTORY_PATH = "C:/Users/berke/OneDrive/Documenten/school/UiA/Smart_X-Ray_Screening_img-data"
-    images_folder_path = DATA_DIRECTORY_PATH + "/images_M-preprocessed-2d"
+    images_folder_path = DATA_DIRECTORY_PATH + "/images_M-preprocessed"
     images_metadata_path = DATA_DIRECTORY_PATH + "/Data_Entry_2017_v2020.csv"
     
     # Image processing settings
@@ -424,8 +438,8 @@ if __name__ == "__main__":
     n_pca_components = 1000     
     batch_size = 1000           # Must be >= n_pca_components for IncrementalPCA 
     
-    LOAD_EXISTING_PCA = False    # Set to True to load existing PCA or LDA model
-    LOAD_EXISTING_DATA = False   # Set to True to skip image loading and PCA or LDAtransformation
+    LOAD_EXISTING_PCA = True    # Set to True to load existing PCA or LDA model
+    LOAD_EXISTING_DATA = True   # Set to True to skip image loading and PCA or LDAtransformation
 
     PCAUSE = False              # Set to True to use PCA instead of LDA
     # =========================
@@ -439,11 +453,11 @@ if __name__ == "__main__":
     
     df = pd.read_csv(images_metadata_path)
 
-    # Filter the metadata to only include images present as .npy files
-    npy_dir = images_folder_path
-    npy_files = sorted([f for f in os.listdir(npy_dir) if f.endswith('.npy')])
-    # Extract numeric part with suffix from .npy filenames
-    available_indices = [f.replace('processed_', '').replace('.npy', '') for f in npy_files]  # processed_00000001_000.npy -> 00000001_000
+    # Filter the metadata to only include images present as .png files
+    img_dir = images_folder_path
+    img_files = sorted([f for f in os.listdir(img_dir) if f.endswith('.png')])
+    # Remove 'soft_tissue_' prefix and '.png' from filenames to get indices
+    available_indices = [f.replace('soft_tissue_', '').replace('.png', '') for f in img_files]
     # Remove .png from CSV and match full numeric part with suffix
     df['Image Index Num'] = df['Image Index'].str.replace('.png', '')  # 00000001_000.png -> 00000001_000
     df = df[df['Image Index Num'].isin(available_indices)].reset_index(drop=True)
@@ -657,70 +671,24 @@ if __name__ == "__main__":
     print(f"\nTraining set - No Finding: {np.sum(Y_train_binary == 0)}, Has Finding: {np.sum(Y_train_binary == 1)}")
     print(f"Test set - No Finding: {np.sum(Y_test_binary == 0)}, Has Finding: {np.sum(Y_test_binary == 1)}")
     
-    # Test different configurations for Stage 1
-    stage1_configs = [
-        {'n_neighbors': 5, 'metric': 'euclidean', 'weights': 'distance'},
-        {'n_neighbors': 10, 'metric': 'euclidean', 'weights': 'distance'},
-        {'n_neighbors': 20, 'metric': 'euclidean', 'weights': 'distance'},
-        {'n_neighbors': 5, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 10, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 20, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 5, 'metric': 'minkowski', 'weights': 'distance'},
-        {'n_neighbors': 10, 'metric': 'minkowski', 'weights': 'distance'},
-        {'n_neighbors': 20, 'metric': 'minkowski', 'weights': 'distance'}
-    ]
-    
-    print(f"\nTesting {len(stage1_configs)} configurations for Stage 1...")
-    
-    best_stage1_accuracy = 0
-    best_stage1_config = None
-    best_stage1_f1 = 0
-    
-    for i, config in enumerate(stage1_configs):
-        print(f"\n[{i+1}/{len(stage1_configs)}] Testing: k={config['n_neighbors']}, metric={config['metric']}, weights={config['weights']}")
-        
-        knn_stage1 = train_knn_model(
-            X_train_encoded, 
-            Y_train_binary,
-            n_neighbors=config['n_neighbors'],
-            metric=config['metric'],
-            weights=config['weights']
-        )
-        
-        Y_pred = knn_stage1.predict(X_test_encoded)
-        accuracy = accuracy_score(Y_test_binary, Y_pred)
-        f1 = f1_score(Y_test_binary, Y_pred, average='weighted')
-        
-        print(f"  Accuracy: {accuracy * 100:.2f}%, F1 (weighted): {f1:.4f}")
-        
-        # Prefer balanced F1 score over raw accuracy
-        if f1 > best_stage1_f1:
-            best_stage1_accuracy = accuracy
-            best_stage1_f1 = f1
-            best_stage1_config = config
-    
+
+    # ===== SVM AS MAIN CLASSIFIER FOR STAGE 1 =====
     print("\n" + "="*60)
-    print("BEST STAGE 1 CONFIGURATION")
+    print("STAGE 1: SVM CLASSIFIER")
     print("="*60)
-    print(f"k={best_stage1_config['n_neighbors']}, metric={best_stage1_config['metric']}, weights={best_stage1_config['weights']}")
-    print(f"Accuracy: {best_stage1_accuracy * 100:.2f}%, F1: {best_stage1_f1:.4f}")
-    
-    # Train final Stage 1 model
-    print("\n=== Training Final Stage 1 Model ===")
-    stage1_model = train_knn_model(
-        X_train_encoded, Y_train_binary,
-        n_neighbors=best_stage1_config['n_neighbors'],
-        metric=best_stage1_config['metric'],
-        weights=best_stage1_config['weights']
-    )
-    
-    evaluate_binary_model(stage1_model, X_test_encoded, Y_test_binary, "Stage 1 Final Model")
-    
-    # Save Stage 1 model
-    stage1_model_path = os.path.join(DATA_DIRECTORY_PATH, "knn_stage1_binary.pkl")
+    svm_config = {'C': 1.0, 'kernel': 'rbf', 'gamma': 'scale', 'probability': False}
+    print(f"Training SVM with config: {svm_config}")
+    stage1_model = train_svm_model(X_train_encoded, Y_train_binary, svm_config)
+    Y_pred_svm = stage1_model.predict(X_test_encoded)
+    accuracy_svm = accuracy_score(Y_test_binary, Y_pred_svm)
+    f1_svm = f1_score(Y_test_binary, Y_pred_svm, average='weighted')
+    print(f"SVM Accuracy: {accuracy_svm * 100:.2f}%, F1 (weighted): {f1_svm:.4f}")
+    evaluate_binary_model(stage1_model, X_test_encoded, Y_test_binary, "Stage 1 SVM Model")
+    # Save Stage 1 SVM model
+    stage1_model_path = os.path.join(DATA_DIRECTORY_PATH, "svm_stage1_binary.pkl")
     with open(stage1_model_path, 'wb') as f:
         pickle.dump(stage1_model, f)
-    print(f"\n✓ Stage 1 model saved to {stage1_model_path}")
+    print(f"\n✓ Stage 1 SVM model saved to {stage1_model_path}")
     
     # ===== STAGE 2: MULTI-LABEL CLASSIFICATION =====
     print("\n" + "="*60)
