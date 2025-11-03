@@ -75,7 +75,7 @@ def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False, pr
         image_path (str): Path to the input X-ray image
         output_size (tuple): Target size for the output image (width, height)
         show_process (bool): Whether to save intermediate processing steps
-        process_types (list): List of processing types to apply (currently only 'standard' is implemented)
+        process_types (list): List of processing types to apply ('standart','edges')
     Returns:
         numpy.ndarray: Preprocessed image array
     """
@@ -150,6 +150,7 @@ def preprocess_batch(input_dir, output_dir, output_size=(2500, 2048), num_thread
         output_dir (str): Path to the directory where processed images will be saved
         output_size (tuple): Target size for the output images (width, height)
         num_threads (int): Number of threads to use for parallel processing
+        process_types (list): List of processing types to apply ('standart','edges')
     """
     # Get list of image files
     image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif']
@@ -217,19 +218,20 @@ def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS
 
 
 if __name__ == "__main__":
-    # Example usage:
 
-    #uncomment to test threaded batch processing
-    #images = [
-    #    'images/00000372_008.png',
-    #    'images/00000001_000.png',
-    #    'images/00000032_005.png'
-    #]
-    #output_directory = 'preprocessed_threaded'
-    #preprocess_filepaths_threaded(images, output_directory,3,(2500, 2048))
-
-    #uncomment to test batch processing
+    # batch processing
     preprocess_batch(input_directory, output_directory, process_types=['standard','edges'])
 
     #uncommment to test single image processing with process visualization
     preprocess_xray('images/00000001_000.png', show_process=True)
+
+    img = np.load('preprocessed/processed_00000001_000.npy')
+    
+    # Add a third channel of zeros to make it n*m*3
+    empty_channel = np.zeros(img.shape[:2], dtype=np.uint8)
+    empty_channel = np.expand_dims(empty_channel, axis=-1)
+    img = np.concatenate([img, empty_channel], axis=-1)
+    
+    cv2.imshow("Processed Image", img)
+    cv2.waitKey(0)  # Fixed typo: waitKey not waitkey
+    cv2.destroyAllWindows()

@@ -1,6 +1,9 @@
 # Challenges and Solutions
 
 ## Preprocessing Pipeline Simplification
+### first preprocessing pipeline
+The initial preprocessing pipeline for the X-ray images involved several complex steps aimed at enhancing soft tissue visibility. This included multiple layers of histogram equalization, contrast adjustments, and noise reduction techniques. While these steps improved the visual quality of the images for human interpretation, they inadvertently complicated the feature extraction process for the KNN classifier.
+
 
 ### What the New `preprocess_xray` Does
 
