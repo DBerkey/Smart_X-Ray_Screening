@@ -3,29 +3,29 @@ This module contains functions to preprocess X-Ray images for further analysis w
 Copilot was used to assist in writing this code.
 """
 
-import cv2
-import numpy as np
 import os
 import shutil
 from concurrent.futures import ThreadPoolExecutor
+import cv2
+import numpy as np
 
-input_directory = 'images'
-output_directory = 'preprocessed'
+INPUT_DIRECTORY = 'images'
+OUTPUT_DIRECTORY = 'preprocessed'
 NUM_THREADS = 4
 
 
 def brightness_range_maximisation(image):
     """
-    make the darkest pixel 0 and the brightest pixel 255
+    Make the darkest pixel 0 and the brightest pixel 255.
     
     Args:
         image (numpy.ndarray): Input grayscale image
+        
     Returns:
         numpy.ndarray: Brightness adjusted image
     """
-
-    min_val = np.min(image)  # Keep min from entire image
-    max_val = np.max(image)  # Keep max from entire image
+    min_val = np.min(image)
+    max_val = np.max(image)
     
     # Scale pixel values to the full 0-255 range
     scaled = ((image - min_val) / (max_val - min_val) * 255).astype(np.uint8)
@@ -38,17 +38,22 @@ def detect_edges(image):
     
     Args:
         image (numpy.ndarray): Input grayscale image
+        
     Returns:
         numpy.ndarray: Edge-detected image as binary mask
     """
-    # blurring
+    # Apply Gaussian and median blur
     blurred = cv2.GaussianBlur(image, (5, 5), 0)
     blurred = cv2.medianBlur(blurred, 5)
 
-
     # Apply Canny edge detection
     threshold1 = 25
-    edges = cv2.Canny(blurred, threshold1=threshold1, threshold2=3*threshold1, apertureSize=3)
+    edges = cv2.Canny(
+        blurred,
+        threshold1=threshold1,
+        threshold2=3 * threshold1,
+        apertureSize=3
+    )
     
     return edges
 
@@ -59,15 +64,17 @@ def build_output_data(images):
     
     Args:
         images (list): List of preprocessed images
+        
     Returns:
-        output image
+        numpy.ndarray: Stacked output image
     """
-    # stack images along a new dimension
+    # Stack images along a new dimension
     output = np.stack(images, axis=-1)
     return output
 
 
-def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False, process_types=['standard']):
+def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False,
+                    process_types=None):
     """
     Apply standard preprocessing pipeline to an X-ray image.
     
@@ -75,10 +82,14 @@ def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False, pr
         image_path (str): Path to the input X-ray image
         output_size (tuple): Target size for the output image (width, height)
         show_process (bool): Whether to save intermediate processing steps
-        process_types (list): List of processing types to apply ('standart','edges')
+        process_types (list): List of processing types to apply ('standard', 'edges')
+        
     Returns:
         numpy.ndarray: Preprocessed image array
     """
+    if process_types is None:
+        process_types = ['standard']
+    
     # Image processing log
     workbench = []
     processed = []
@@ -113,17 +124,15 @@ def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False, pr
     if 'standard' in process_types:
         processed.append(workbench[-1])
 
-    # detect edges
+    # Detect edges
     edges = detect_edges(workbench[-1])
     workbench.append(edges)
     # Record processed image if required
     if 'edges' in process_types:
         processed.append(edges)
 
-
-    # build output data
+    # Build output data
     output_data = build_output_data(processed)
-
 
     if show_process:
         # Clear and create pipeline directory
@@ -132,17 +141,18 @@ def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False, pr
             shutil.rmtree(pipeline_dir)
         os.makedirs(pipeline_dir)
         
-        for i, img in enumerate(workbench):
+        for i, stage_img in enumerate(workbench):
             output_path = os.path.join(pipeline_dir, f'{i:02d}.png')
-            cv2.imwrite(output_path, img)
+            cv2.imwrite(output_path, stage_img)
             print(f"Saved standard pipeline stage: {output_path}")
 
     return output_data
 
 
-def preprocess_batch(input_dir, output_dir, output_size=(2500, 2048), num_threads=NUM_THREADS, process_types=['standard']):
+def preprocess_batch(input_dir, output_dir, output_size=(2500, 2048),
+                     num_threads=NUM_THREADS, process_types=None):
     """
-    Preprocess all X-ray images in a directory with soft tissue optimization and save them to an output directory.
+    Preprocess all X-ray images in a directory and save them to an output directory.
     Uses multithreading for improved performance.
     
     Args:
@@ -150,8 +160,11 @@ def preprocess_batch(input_dir, output_dir, output_size=(2500, 2048), num_thread
         output_dir (str): Path to the directory where processed images will be saved
         output_size (tuple): Target size for the output images (width, height)
         num_threads (int): Number of threads to use for parallel processing
-        process_types (list): List of processing types to apply ('standart','edges')
+        process_types (list): List of processing types to apply ('standard', 'edges')
     """
+    if process_types is None:
+        process_types = ['standard']
+    
     # Get list of image files
     image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif']
     
@@ -162,10 +175,13 @@ def preprocess_batch(input_dir, output_dir, output_size=(2500, 2048), num_thread
             filepaths.append(input_path)
     
     # Use the multithreaded function to process all images
-    preprocess_filepaths_threaded(filepaths, output_dir, num_threads, output_size, process_types)
+    preprocess_filepaths_threaded(
+        filepaths, output_dir, num_threads, output_size, process_types
+    )
 
 
-def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS, output_size=(2500, 2048), process_types=['standard']):
+def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS,
+                                  output_size=(2500, 2048), process_types=None):
     """
     Preprocess a list of image filepaths using multiple threads.
     
@@ -179,13 +195,18 @@ def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS
     Returns:
         tuple: (successful_count, error_count)
     """
+    if process_types is None:
+        process_types = ['standard']
+    
     os.makedirs(output_dir, exist_ok=True)
     
     def process_single_file(filepath):
         try:
             filename = os.path.basename(filepath)
             base_name = os.path.splitext(filename)[0]
-            processed_image = preprocess_xray(filepath, output_size, process_types=process_types)
+            processed_image = preprocess_xray(
+                filepath, output_size, process_types=process_types
+            )
             
             # Check if multi-channel output
             if len(processed_image.shape) == 3 and processed_image.shape[2] > 1:
@@ -200,7 +221,7 @@ def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS
                     processed_image = processed_image[:, :, 0]
                 cv2.imwrite(output_path, processed_image)
             return True, filepath
-        except Exception as e:
+        except (IOError, ValueError) as e:
             return False, f"{filepath}: {str(e)}"
     
     results = []
@@ -210,7 +231,7 @@ def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS
     successful = sum(1 for success, _ in results if success)
     errors = sum(1 for success, _ in results if not success)
     
-    print(f"\nThreaded processing complete:")
+    print("\nThreaded processing complete:")
     print(f"Successfully processed: {successful} images")
     print(f"Errors encountered: {errors} images")
     
@@ -218,20 +239,23 @@ def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS
 
 
 if __name__ == "__main__":
+    # Batch processing
+    preprocess_batch(
+        INPUT_DIRECTORY,
+        OUTPUT_DIRECTORY,
+        process_types=['standard', 'edges']
+    )
 
-    # batch processing
-    preprocess_batch(input_directory, output_directory, process_types=['standard','edges'])
-
-    #uncommment to test single image processing with process visualization
+    # Uncomment to test single image processing with process visualization
     preprocess_xray('images/00000001_000.png', show_process=True)
 
     img = np.load('preprocessed/processed_00000001_000.npy')
     
-    # Add a third channel of zeros to make it n*m*3
+    # Add a third channel of zeros to make it n*m*3 for display
     empty_channel = np.zeros(img.shape[:2], dtype=np.uint8)
     empty_channel = np.expand_dims(empty_channel, axis=-1)
     img = np.concatenate([img, empty_channel], axis=-1)
     
     cv2.imshow("Processed Image", img)
-    cv2.waitKey(0)  # Fixed typo: waitKey not waitkey
+    cv2.waitKey(0)
     cv2.destroyAllWindows()
