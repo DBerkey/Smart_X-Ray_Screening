@@ -9,13 +9,14 @@ AI use: in this code there was made use of GitHub Copilot to generate the docstr
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer, OneHotEncoder, StandardScaler
-from sklearn.decomposition import IncrementalPCA
+from skimage.feature import hog
 from sklearn.metrics import accuracy_score, hamming_loss, f1_score, jaccard_score
 from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.manifold import TSNE
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
+import concurrent.futures
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
@@ -88,85 +89,60 @@ def build_feature_matrix_batched(images_folder_path, df, img_size, batch_size=50
         del batch_images
         gc.collect()
 
-def fit_pca_incremental(images_folder_path, df, img_size, n_components=500, batch_size=50):
+def extract_hog_features_batched(images_folder_path, df, img_size, batch_size=50, pixels_per_cell=(32, 32), cells_per_block=(4, 4), orientations=9):
     """
-    Fits an IncrementalPCA model on images using batch processing.
-    This avoids loading all images into memory at once.
-    
+    Extracts HOG features from images in batches.
     Param:
         images_folder_path: Path to the folder containing images.
         df: DataFrame containing image metadata.
         img_size: Tuple specifying the desired image size (width, height).
-        n_components: Number of principal components to keep.
         batch_size: Number of images to process in each batch.
-    Returns:
-        Fitted IncrementalPCA model.
+        pixels_per_cell, cells_per_block, orientations: HOG parameters.
+    Yields:
+        Batches of HOG feature vectors as numpy arrays.
     """
-    print(f"\nFitting Incremental PCA with {n_components} components on {len(df)} images...")
-    
-    # Initialize IncrementalPCA
-    pca = IncrementalPCA(n_components=n_components)
+    num_images = len(df)
+    image_indices = df["Image Index"].values
+    print(f"Extracting HOG features for {num_images} images in batches of {batch_size}...")
 
-    batch_count = 0
-    total_samples = 0
-    
-    for batch in build_feature_matrix_batched(images_folder_path, df, img_size, batch_size):
-        batch = batch / 255.0
-        
-        batch_count += 1
-        total_samples += len(batch)
-        
-        pca.partial_fit(batch)
-        
-        if batch_count % 10 == 0 or batch_count == 1:
-            print(f"  Fitted batch {batch_count} ({total_samples}/{len(df)} samples)")
-        
-        del batch
+    for i in range(0, num_images, batch_size):
+        batch_end = min(i + batch_size, num_images)
+        batch_indices = image_indices[i:batch_end]
+        args_list = [(img_index, images_folder_path, img_size, pixels_per_cell, cells_per_block, orientations) for img_index in batch_indices]
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            batch_features = list(executor.map(process_image_hog, args_list))
+        print(f"  Processed batch {i//batch_size + 1}/{(num_images + batch_size - 1)//batch_size} ({batch_end}/{num_images} images)")
+        yield np.array(batch_features, dtype=np.float32)
+        del batch_features
         gc.collect()
-    
-    explained_var = pca.explained_variance_ratio_.sum()
-    print(f"PCA fitted on ALL {total_samples} samples")
-    print(f"Explained variance ratio: {explained_var:.4f} ({explained_var*100:.2f}%)")
-    
-    if explained_var < 0.80:
-        print(f"WARNING: Only {explained_var*100:.1f}% variance captured!")
-    
-    return pca
 
-def transform_features_batched(images_folder_path, df, img_size, pca, batch_size=50):
+def get_hog_feature_matrix(images_folder_path, df, img_size, batch_size=50, pixels_per_cell=(32, 32), cells_per_block=(4, 4), orientations=9):
     """
-    Transforms images using a fitted PCA model, processing in batches.
-    
+    Builds the full HOG feature matrix from all images in batches.
+    Returns:
+        Feature matrix of shape (num_images, num_features)
+    """
+    print(f"\nBuilding HOG feature matrix for {len(df)} images...")
+    feature_batches = []
+    for batch in extract_hog_features_batched(images_folder_path, df, img_size, batch_size, pixels_per_cell, cells_per_block, orientations):
+        feature_batches.append(batch)
+    return np.vstack(feature_batches)
+
+def process_image_hog(args):
+    """
+    Processes a single image to extract HOG features.
     Param:
-        images_folder_path: Path to the folder containing images.
-        df: DataFrame containing image metadata.
-        img_size: Tuple specifying the desired image size (width, height).
-        pca: Fitted PCA model.
-        batch_size: Number of images to process in each batch.
+        args: Tuple containing (img_index, images_folder_path, img_size, pixels_per_cell, cells_per_block, orientations)
     Returns:
-        Transformed feature matrix (reduced dimensions).
+        HOG feature vector as a numpy array.
     """
-    print(f"\nTransforming {len(df)} images using PCA...")
-    
-    transformed_batches = []
-    batch_count = 0
-    
-    for batch in build_feature_matrix_batched(images_folder_path, df, img_size, batch_size):
-        batch = batch / 255.0
-        
-        transformed_batch = pca.transform(batch)
-        transformed_batches.append(transformed_batch)
-        
-        batch_count += 1
-        if batch_count % 20 == 0:
-            print(f"  Transformed {batch_count * batch_size}/{len(df)} images")
-        
-        del batch
-        gc.collect()
-    
-    X_transformed = np.vstack(transformed_batches)
-    print(f"Transformation complete. Final shape: {X_transformed.shape}")
-    return X_transformed
+    img_index, images_folder_path, img_size, pixels_per_cell, cells_per_block, orientations = args
+    img_name = f"soft_tissue_{img_index}"
+    path = os.path.join(images_folder_path, img_name)
+    img = Image.open(path).convert("L").resize(img_size)
+    img_np = np.array(img) / 255.0
+    features = hog(img_np, pixels_per_cell=pixels_per_cell, cells_per_block=cells_per_block, orientations=orientations, feature_vector=True)
+    return features
 
 def load_raw_feature_matrix(images_folder_path, df, img_size, batch_size=50):
     """
@@ -434,262 +410,85 @@ if __name__ == "__main__":
     images_metadata_path = DATA_DIRECTORY_PATH + "/Data_Entry_2017_v2020.csv"
     
     # Image processing settings
-    img_size = (500, 500)      # resolution of the images (width, height)
+    img_size = (128, 128)      # resolution of the images (width, height)
     n_pca_components = 1000     
     batch_size = 1000           # Must be >= n_pca_components for IncrementalPCA 
     
-    LOAD_EXISTING_PCA = True    # Set to True to load existing PCA or LDA model
-    LOAD_EXISTING_DATA = True   # Set to True to skip image loading and PCA or LDAtransformation
+    LOAD_EXISTING_PCA = False    # Set to True to load existing PCA or LDA model
+    LOAD_EXISTING_DATA = False   # Set to True to skip image loading and PCA or LDA transformation
 
-    PCAUSE = False              # Set to True to use PCA instead of LDA
-    # =========================
-    
-    print("\n" + "="*60)
-    print("TWO-STAGE KNN CLASSIFICATION SYSTEM")
-    print("="*60)
-    print("Stage 1: Binary classification (Finding vs No Finding)")
-    print("Stage 2: Multi-label classification (Specific conditions)")
-    print("="*60 + "\n")
-    
+    batch_size = 100
+    processed_data_path = os.path.join(DATA_DIRECTORY_PATH, "processed_features.npz")
+    scaler_path = os.path.join(DATA_DIRECTORY_PATH, "feature_scaler.pkl")
+
+    # Read metadata and split data
     df = pd.read_csv(images_metadata_path)
-
-    # Filter the metadata to only include images present as .png files
-    img_dir = images_folder_path
-    img_files = sorted([f for f in os.listdir(img_dir) if f.endswith('.png')])
-    # Remove 'soft_tissue_' prefix and '.png' from filenames to get indices
-    available_indices = [f.replace('soft_tissue_', '').replace('.png', '') for f in img_files]
-    # Remove .png from CSV and match full numeric part with suffix
-    df['Image Index Num'] = df['Image Index'].str.replace('.png', '')  # 00000001_000.png -> 00000001_000
-    df = df[df['Image Index Num'].isin(available_indices)].reset_index(drop=True)
-    
-    # Print label distribution
-    print("\n=== Label Distribution ===")
-    no_finding_count = (df['Finding Labels'] == 'No Finding').sum()
-    has_finding_count = (df['Finding Labels'] != 'No Finding').sum()
-    print(f"No Finding: {no_finding_count} ({no_finding_count/len(df)*100:.1f}%)")
-    print(f"Has Finding: {has_finding_count} ({has_finding_count/len(df)*100:.1f}%)")
-
+    img_files = set(os.listdir(images_folder_path))
+    df['ImageFile'] = df['Image Index'].apply(lambda idx: f"soft_tissue_{idx}")
+    df = df[df['ImageFile'].isin(img_files)].reset_index(drop=True)
     x = df[['Image Index', 'Patient Age', 'Patient Sex', 'View Position']]
     y = df['Finding Labels']
-    if len(x) == 0 or len(y) == 0:
-        raise ValueError("No samples found after filtering metadata for available .npy files. Check your file naming and metadata consistency.")
     train, test, eval = split_data_train_test_eval(x, y)
 
-    # Save evaluation data to CSV for application use
-    eval_csv_path = os.path.join(DATA_DIRECTORY_PATH, "eval_data.csv")
-    eval_df = pd.DataFrame(eval[0])
-    eval_df['Finding Labels'] = eval[1].values
-    eval_df.to_csv(eval_csv_path, index=False)
-    print(f"\nEvaluation data saved to {eval_csv_path}")
-
-    # Check if we should load existing processed data
-    processed_data_path = os.path.join(DATA_DIRECTORY_PATH, "processed_features.npz")
-    pca_model_path = os.path.join(DATA_DIRECTORY_PATH, "pca_model.pkl")
-    lda_model_path = os.path.join(DATA_DIRECTORY_PATH, "lda_model.pkl")
-    scaler_path = os.path.join(DATA_DIRECTORY_PATH, "feature_scaler.pkl")
-    
     if LOAD_EXISTING_DATA and os.path.exists(processed_data_path) and os.path.exists(scaler_path):
         print("\n=== Loading Pre-processed Data ===")
         print(f"Loading from {processed_data_path}")
-        
         loaded_data = np.load(processed_data_path)
         X_train_encoded = loaded_data['X_train_encoded']
         X_test_encoded = loaded_data['X_test_encoded']
-        
-        if PCAUSE:
-            with open(pca_model_path, 'rb') as f:
-                pca = pickle.load(f)
-        else:
-            with open(lda_model_path, 'rb') as f:
-                lda = pickle.load(f)
         with open(scaler_path, 'rb') as f:
             feature_scaler = pickle.load(f)
-            
         print(f"✓ Loaded preprocessed data: X_train shape = {X_train_encoded.shape}, X_test shape = {X_test_encoded.shape}")
-        if PCAUSE:
-            try:
-                explained = pca.explained_variance_ratio_.sum()
-                print(f"✓ PCA explained variance: {explained:.4f} ({explained*100:.2f}%)")
-            except Exception:
-                print("✓ PCA model loaded (could not read explained variance)")
-        else:
-            print(f"✓ LDA model loaded (n_components={getattr(lda, 'n_components', 'unknown')})")
-        
     else:
-        # Process from scratch
-        if PCAUSE:
-            if LOAD_EXISTING_PCA and os.path.exists(pca_model_path):
-                print("\n=== Loading Existing PCA Model ===")
-                with open(pca_model_path, 'rb') as f:
-                    pca = pickle.load(f)
-                print(f"✓ Loaded PCA model with {pca.n_components} components")
-                try:
-                    explained = pca.explained_variance_ratio_.sum()
-                    print(f"✓ Explained variance: {explained:.4f} ({explained*100:.2f}%)")
-                except Exception:
-                    pass
-            else:
-                print("\n=== Training PCA Model ===")
-                # Fit PCA on training data using incremental approach
-                pca = fit_pca_incremental(images_folder_path, pd.DataFrame(train[0]), img_size, 
-                                          n_components=n_pca_components, batch_size=batch_size)
-                # Save PCA model
-                print(f"✓ Saving PCA model to {pca_model_path}")
-                with open(pca_model_path, 'wb') as f:
-                    pickle.dump(pca, f)
-
-            # Transform training and test data using PCA
-            print("\n=== Processing Training Data (PCA) ===")
-            X_train = transform_features_batched(images_folder_path, pd.DataFrame(train[0]), 
-                                                 img_size, pca, batch_size=batch_size)
-            
-            print("\n=== Processing Test Data (PCA) ===")
-            X_test = transform_features_batched(images_folder_path, pd.DataFrame(test[0]), 
-                                                img_size, pca, batch_size=batch_size)
-
-            # Standardize PCA features
-            print("\n=== Standardizing Features ===")
-            X_train_std, X_test_std, _, feature_scaler = standardize_pca_features(X_train, X_test)
+        print("\n=== Extracting HOG Features for Training Data ===")
+        X_train_hog = get_hog_feature_matrix(images_folder_path, pd.DataFrame(train[0]), img_size, batch_size=batch_size)
+        print("\n=== Extracting HOG Features for Test Data ===")
+        X_test_hog = get_hog_feature_matrix(images_folder_path, pd.DataFrame(test[0]), img_size, batch_size=batch_size)
+        print("\n=== Standardizing HOG Features ===")
+        X_train_std, X_test_std, _, feature_scaler = standardize_pca_features(X_train_hog, X_test_hog)
+        print(f"Features standardized (mean≈0, std≈1)")
+        X_train_encoded = encode_scale_input_features(pd.DataFrame(train[0]), X_train_std)
+        X_test_encoded = encode_scale_input_features(pd.DataFrame(test[0]), X_test_std)
+        print(f"\n=== Saving Processed Data ===")
+        np.savez_compressed(processed_data_path, 
+                            X_train_encoded=X_train_encoded,
+                            X_test_encoded=X_test_encoded)
+        print(f"✓ Saved to {processed_data_path}")
+        print(f"✓ Saving feature scaler to {scaler_path}")
+        with open(scaler_path, 'wb') as f:
+            pickle.dump(feature_scaler, f)
+            X_train_std, X_test_std, _, feature_scaler = standardize_pca_features(X_train_hog, X_test_hog)
             print(f"Features standardized (mean≈0, std≈1)")
-
-            # Combine with metadata
             X_train_encoded = encode_scale_input_features(pd.DataFrame(train[0]), X_train_std)
             X_test_encoded = encode_scale_input_features(pd.DataFrame(test[0]), X_test_std)
-
-            # Save processed data and scaler
             print(f"\n=== Saving Processed Data ===")
             np.savez_compressed(processed_data_path, 
-                               X_train_encoded=X_train_encoded,
-                               X_test_encoded=X_test_encoded)
+                                X_train_encoded=X_train_encoded,
+                                X_test_encoded=X_test_encoded)
             print(f"✓ Saved to {processed_data_path}")
             print(f"✓ Saving feature scaler to {scaler_path}")
             with open(scaler_path, 'wb') as f:
                 pickle.dump(feature_scaler, f)
-
-        else:
-            # LDA path - First reduce dimensions with PCA, then apply LDA
-            # This avoids memory issues with high-dimensional data
-            print("\n=== Preparing data for PCA+LDA (two-step dimensionality reduction) ===")
-            
-            # Step 1: Apply PCA first to reduce dimensions
-            if LOAD_EXISTING_PCA and os.path.exists(pca_model_path):
-                print("\n=== Loading Existing PCA Model ===")
-                with open(pca_model_path, 'rb') as f:
-                    pca = pickle.load(f)
-                print(f"✓ Loaded PCA model with {pca.n_components} components")
-                try:
-                    explained = pca.explained_variance_ratio_.sum()
-                    print(f"✓ Explained variance: {explained:.4f} ({explained*100:.2f}%)")
-                except Exception:
-                    pass
-            else:
-                print("\n=== Training PCA Model (Step 1 of PCA+LDA) ===")
-                # Fit PCA on training data using incremental approach
-                pca = fit_pca_incremental(images_folder_path, pd.DataFrame(train[0]), img_size, 
-                                          n_components=n_pca_components, batch_size=batch_size)
-                # Save PCA model
-                print(f"✓ Saving PCA model to {pca_model_path}")
-                with open(pca_model_path, 'wb') as f:
-                    pickle.dump(pca, f)
-
-            # Transform data using PCA
-            print("\n=== Processing Training Data with PCA ===")
-            X_train_pca = transform_features_batched(images_folder_path, pd.DataFrame(train[0]), 
-                                                 img_size, pca, batch_size=batch_size)
-            
-            print("\n=== Processing Test Data with PCA ===")
-            X_test_pca = transform_features_batched(images_folder_path, pd.DataFrame(test[0]), 
-                                                img_size, pca, batch_size=batch_size)
-
-            # Step 2: Apply LDA on PCA-reduced features
-            print("\n=== Applying LDA on PCA-reduced features (Step 2 of PCA+LDA) ===")
-            Y_train_binary = create_binary_labels(train[1])
-
-            # Determine allowed number of components for LDA: at most n_classes-1
-            unique_classes = np.unique(Y_train_binary)
-            max_lda_components = max(1, len(unique_classes) - 1)
-            # LDA components cannot exceed n_classes-1 (which is 1 for binary classification)
-            n_lda_components = min(max_lda_components, 1)
-
-            print(f"Fitting LDA with n_components={n_lda_components} (max allowed: {max_lda_components}) on PCA-reduced data with shape {X_train_pca.shape}")
-            lda = LinearDiscriminantAnalysis(n_components=n_lda_components)
-            lda.fit(X_train_pca, Y_train_binary)
-
-            # Transform data using LDA
-            X_train_lda = lda.transform(X_train_pca)
-            X_test_lda = lda.transform(X_test_pca)
-
-            # Standardize LDA features
-            print("\n=== Standardizing LDA Features ===")
-            X_train_std, X_test_std, _, feature_scaler = standardize_pca_features(X_train_lda, X_test_lda)
-
-            # Combine with metadata
-            X_train_encoded = encode_scale_input_features(pd.DataFrame(train[0]), X_train_std)
-            X_test_encoded = encode_scale_input_features(pd.DataFrame(test[0]), X_test_std)
-
-            # Save processed data and LDA model
-            print(f"\n=== Saving Processed Data and LDA model ===")
-            np.savez_compressed(processed_data_path, 
-                               X_train_encoded=X_train_encoded,
-                               X_test_encoded=X_test_encoded)
-            print(f"✓ Saved to {processed_data_path}")
-            print(f"✓ Saving feature scaler to {scaler_path}")
-            with open(scaler_path, 'wb') as f:
-                pickle.dump(feature_scaler, f)
-
-            print(f"✓ Saving LDA model to {lda_model_path}")
-            with open(lda_model_path, 'wb') as f:
-                pickle.dump(lda, f)
-
-    print("\n=== t-SNE Visualization (Binary Labels) ===")
-    # Use the encoded features after dimensionality reduction (X_train_encoded)
-    # For speed, use a subset if dataset is large
-    tsne_sample_size = min(2000, len(X_train_encoded))
-    idx = np.random.choice(len(X_train_encoded), tsne_sample_size, replace=False)
-    X_vis = X_train_encoded[idx]
-    y_vis = Y_train_binary[idx]
-    tsne = TSNE(n_components=2, random_state=42, perplexity=30)
-    X_tsne = tsne.fit_transform(X_vis)
-    plt.figure(figsize=(8,6))
-    scatter = plt.scatter(X_tsne[:,0], X_tsne[:,1], c=y_vis, cmap='coolwarm', alpha=0.6)
-    plt.title('t-SNE Visualization of Training Data (Binary Labels)')
-    plt.xlabel('t-SNE 1')
-    plt.ylabel('t-SNE 2')
-    plt.legend(*scatter.legend_elements(), title="Class")
-    plt.tight_layout()
-    plt.show()
-
-    # ===== STAGE 1: BINARY CLASSIFICATION =====
     print("\n" + "="*60)
     print("STAGE 1: BINARY CLASSIFICATION (Finding vs No Finding)")
     print("="*60)
-    
-    # Create binary labels
-    Y_train_binary = create_binary_labels(train[1])
-    Y_test_binary = create_binary_labels(test[1])
-    
-    print(f"\nTraining set - No Finding: {np.sum(Y_train_binary == 0)}, Has Finding: {np.sum(Y_train_binary == 1)}")
-    print(f"Test set - No Finding: {np.sum(Y_test_binary == 0)}, Has Finding: {np.sum(Y_test_binary == 1)}")
-    
 
-    # ===== SVM AS MAIN CLASSIFIER FOR STAGE 1 =====
-    print("\n" + "="*60)
-    print("STAGE 1: SVM CLASSIFIER")
-    print("="*60)
+    train_debug = (train[0], train[1])
+    test_debug = (test[0], test[1])
+    Y_train_binary = create_binary_labels(train_debug[1])
+    Y_test_binary = create_binary_labels(test_debug[1])
+
+    print(f"Training SVM on {len(X_train_encoded)} samples...")
     svm_config = {'C': 1.0, 'kernel': 'rbf', 'gamma': 'scale', 'probability': False}
-    print(f"Training SVM with config: {svm_config}")
     stage1_model = train_svm_model(X_train_encoded, Y_train_binary, svm_config)
-    Y_pred_svm = stage1_model.predict(X_test_encoded)
-    accuracy_svm = accuracy_score(Y_test_binary, Y_pred_svm)
-    f1_svm = f1_score(Y_test_binary, Y_pred_svm, average='weighted')
-    print(f"SVM Accuracy: {accuracy_svm * 100:.2f}%, F1 (weighted): {f1_svm:.4f}")
+    print("SVM training complete.")
     evaluate_binary_model(stage1_model, X_test_encoded, Y_test_binary, "Stage 1 SVM Model")
-    # Save Stage 1 SVM model
+    # Save Stage 1 model
     stage1_model_path = os.path.join(DATA_DIRECTORY_PATH, "svm_stage1_binary.pkl")
     with open(stage1_model_path, 'wb') as f:
         pickle.dump(stage1_model, f)
-    print(f"\n✓ Stage 1 SVM model saved to {stage1_model_path}")
-    
+    print(f"\n✓ Stage 1 model saved to {stage1_model_path}")
+
     # ===== STAGE 2: MULTI-LABEL CLASSIFICATION =====
     print("\n" + "="*60)
     print("STAGE 2: MULTI-LABEL CLASSIFICATION (Specific Conditions)")
@@ -803,14 +602,12 @@ if __name__ == "__main__":
     print(f"Training samples: {len(X_train_encoded)}")
     print(f"Test samples: {len(X_test_encoded)}")
     print(f"Image resolution: {img_size}")
-    if PCAUSE:
-        print(f"PCA components: {n_pca_components}")
-        print(f"PCA explained variance: {pca.explained_variance_ratio_.sum():.4f} ({pca.explained_variance_ratio_.sum()*100:.2f}%)")
+    # PCA/LDA summary removed (not used)
+    # Stage 1 config summary removed (not used)
+    if best_stage2_config is not None:
+        print(f"Stage 2 (Multi-label): k={best_stage2_config['n_neighbors']}, {best_stage2_config['metric']}")
     else:
-        print(f"Dimensionality reduction: PCA (n={n_pca_components}) + LDA")
-        print(f"PCA explained variance: {pca.explained_variance_ratio_.sum():.4f} ({pca.explained_variance_ratio_.sum()*100:.2f}%)")
-    print(f"\nStage 1 (Binary): k={best_stage1_config['n_neighbors']}, {best_stage1_config['metric']}")
-    print(f"Stage 2 (Multi-label): k={best_stage2_config['n_neighbors']}, {best_stage2_config['metric']}")
+        print("Stage 2 (Multi-label): No valid config found (likely due to small debug subset)")
     print(f"\nTwo-Stage System Performance:")
     print(f"  F1 Macro: {f1_macro:.4f}")
     print(f"  F1 Micro: {f1_micro:.4f}")
