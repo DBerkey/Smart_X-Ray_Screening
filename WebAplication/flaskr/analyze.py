@@ -5,7 +5,14 @@ import mimetypes
 from io import BytesIO
 from datetime import datetime, timezone
 from pathlib import Path
+import sys
 from typing import Tuple, Optional
+
+repo_root = Path(__file__).resolve().parents[2]
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
+
+from Preprocessing.preprocessing import run_preprocessing
 
 from flask import (
     Blueprint, current_app, request, redirect, url_for, session, abort, send_file
@@ -19,9 +26,8 @@ ALLOWED_EXTS = {"png", "jpg", "jpeg", "bmp", "gif"}
 
 # Return Interfaces, Interfaces/Input, Interfaces/PreProcess, Interfaces/Processed
 def _interfaces_paths() -> Tuple[Path, Path, Path, Path]:
-   
-    project_root = Path(current_app.root_path).parent  # WebAplication/
-    root = project_root / "Interfaces"
+    repo_root = Path(current_app.root_path).parents[1]   
+    root = repo_root / "Interfaces"                      
     input_dir = root / "Input"
     preproc_dir = root / "PreProcess"
     processed_dir = root / "Processed"
@@ -52,19 +58,15 @@ def _save_direct_to_interfaces_input(upload_file) -> Path:
     upload_file.save(saved_path)
     return saved_path
 
-# Run recognition pipeline
 def _try_run_interfaces_pipeline(copied_input: Path) -> None:
-    """
-    OPTIONAL: invoke your pipeline here (script or Python API).
-    Example:
-        import subprocess
-        root, _, _, _ = _interfaces_paths()
-        subprocess.check_call(
-            ["python", "main.py", "--input", str(copied_input)],
-            cwd=root
-        )
-    """
-    return
+    _, _, preproc_dir, processed_dir = _interfaces_paths()
+    run_preprocessing(
+        str(copied_input),
+        str(preproc_dir),
+        str(processed_dir),
+        output_size=(500, 500),
+        process_types=('standard',)
+    )
 
 
 def _load_interfaces_outputs(preproc_dir: Path, processed_dir: Path):
