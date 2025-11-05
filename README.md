@@ -69,3 +69,50 @@ Analyzes the spatial distribution and characteristics of medical conditions in c
 - pandas, matplotlib, seaborn, jupyter
 - Chest X-ray dataset with BBox_List_2017.csv file
 
+
+# Image Preprocessing
+
+### Prerequisites
+1. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. Prepare your data:
+   - Create an `images/` directory in the `Preprocessing/` folder
+   - Place your X-ray images (.png, .jpg, .jpeg, .bmp, .tiff) in the `images/` directory
+
+### Running Preprocessing
+
+1. Navigate to Preprocessing directory
+```bash
+cd Preprocessing
+```
+
+2. Run batch processing (processes all images)
+```python
+python preprocessing.py
+```
+This will:
+- Process all images in the `images/` directory
+- Save enhanced images to `preprocessed/` directory
+- Apply soft tissue optimization for better radiologic visibility
+
+3. Process single image with pipeline visualization
+```python
+# Edit the 'input_of_single_image' in preprocessing.py 
+# OR run in Python:
+from preprocessing import preprocess_xray_soft_tissue
+processed_image = preprocess_xray_soft_tissue('images/your_image.png', show_process=True)
+```
+This creates a `soft_tissue_pipeline/` folder showing each processing step.
+
+4. Run tests (optional)
+```bash
+python test_preprocessing.py
+```
+
+### Output
+- Enhanced X-ray images optimized for soft tissue detection
+- Pipeline visualization showing processing steps
+- Batch processing progress tracking
