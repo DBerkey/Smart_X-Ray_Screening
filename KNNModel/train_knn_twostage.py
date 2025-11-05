@@ -410,12 +410,12 @@ if __name__ == "__main__":
     images_metadata_path = DATA_DIRECTORY_PATH + "/Data_Entry_2017_v2020.csv"
     
     # Image processing settings
-    img_size = (128, 128)      # resolution of the images (width, height)
+    img_size = (256, 256)      # resolution of the images (width, height)
     n_pca_components = 1000     
     batch_size = 1000           # Must be >= n_pca_components for IncrementalPCA 
     
-    LOAD_EXISTING_PCA = False    # Set to True to load existing PCA or LDA model
-    LOAD_EXISTING_DATA = False   # Set to True to skip image loading and PCA or LDA transformation
+    LOAD_EXISTING_PCA = True    # Set to True to load existing PCA or LDA model
+    LOAD_EXISTING_DATA = True   # Set to True to skip image loading and PCA or LDA transformation
 
     batch_size = 100
     processed_data_path = os.path.join(DATA_DIRECTORY_PATH, "processed_features.npz")
@@ -482,7 +482,30 @@ if __name__ == "__main__":
     svm_config = {'C': 1.0, 'kernel': 'rbf', 'gamma': 'scale', 'probability': False}
     stage1_model = train_svm_model(X_train_encoded, Y_train_binary, svm_config)
     print("SVM training complete.")
-    evaluate_binary_model(stage1_model, X_test_encoded, Y_test_binary, "Stage 1 SVM Model")
+
+    print("\nEvaluating Stage 1 Model...")
+    accuracy, _, precision, recall, best_stage1_f1 = evaluate_binary_model(stage1_model, X_test_encoded, Y_test_binary, "Stage 1 SVM Model")
+    print("\n" + "="*60)
+    print("BEST STAGE 1 CONFIGURATION")
+    print("="*60)
+    print(f"C: {svm_config['C']}, kernel: {svm_config['kernel']}, gamma: {svm_config['gamma']}")
+    if isinstance(best_stage1_f1, (np.ndarray, list, tuple)):
+        if len(best_stage1_f1) == 2:
+            print(f"F1 Score (No Finding): {best_stage1_f1[0]:.4f}")
+            print(f"F1 Score (Has Finding): {best_stage1_f1[1]:.4f}")
+        else:
+            print(f"Mean F1 Score: {np.mean(best_stage1_f1):.4f}")
+    else:
+        print(f"Best F1 Score: {best_stage1_f1:.4f}")
+    print(f"Accuracy: {accuracy:.4f}")
+    if isinstance(precision, (np.ndarray, list, tuple)) and isinstance(recall, (np.ndarray, list, tuple)):
+        if len(precision) == 2 and len(recall) == 2:
+            print(f"Precision (No Finding): {precision[0]:.4f}, Precision (Has Finding): {precision[1]:.4f}")
+            print(f"Recall (No Finding): {recall[0]:.4f}, Recall (Has Finding): {recall[1]:.4f}")
+        else:
+            print(f"Mean Precision: {np.mean(precision):.4f}, Mean Recall: {np.mean(recall):.4f}")
+    else:
+        print(f"Precision: {precision:.4f}, Recall: {recall:.4f}")
     # Save Stage 1 model
     stage1_model_path = os.path.join(DATA_DIRECTORY_PATH, "svm_stage1_binary.pkl")
     with open(stage1_model_path, 'wb') as f:
@@ -552,31 +575,30 @@ if __name__ == "__main__":
     print("\n" + "="*60)
     print("BEST STAGE 2 CONFIGURATION")
     print("="*60)
-    print(f"k={best_stage2_config['n_neighbors']}, metric={best_stage2_config['metric']}, weights={best_stage2_config['weights']}")
-    print(f"F1 Macro: {best_stage2_f1_macro:.4f}")
-    
-    # Train final Stage 2 model
-    print("\n=== Training Final Stage 2 Model ===")
-    stage2_model = train_knn_model(
-        X_train_stage2, Y_train_stage2,
-        n_neighbors=best_stage2_config['n_neighbors'],
-        metric=best_stage2_config['metric'],
-        weights=best_stage2_config['weights']
-    )
-    
-    evaluate_multilabel_model(stage2_model, X_test_stage2, Y_test_stage2, "Stage 2 Final Model")
-    
-    # Save Stage 2 model
-    stage2_model_path = os.path.join(DATA_DIRECTORY_PATH, "knn_stage2_multilabel.pkl")
-    with open(stage2_model_path, 'wb') as f:
-        pickle.dump(stage2_model, f)
-    print(f"\n✓ Stage 2 model saved to {stage2_model_path}")
-    
-    # Save label encoder
-    mlb_path = os.path.join(DATA_DIRECTORY_PATH, "label_encoder_stage2.pkl")
-    with open(mlb_path, 'wb') as f:
-        pickle.dump(mlb, f)
-    print(f"✓ Label encoder saved to {mlb_path}")
+    if best_stage2_config is not None:
+        print(f"k={best_stage2_config['n_neighbors']}, metric={best_stage2_config['metric']}, weights={best_stage2_config['weights']}")
+        print(f"F1 Macro: {best_stage2_f1_macro:.4f}")
+        # Train final Stage 2 model
+        print("\n=== Training Final Stage 2 Model ===")
+        stage2_model = train_knn_model(
+            X_train_stage2, Y_train_stage2,
+            n_neighbors=best_stage2_config['n_neighbors'],
+            metric=best_stage2_config['metric'],
+            weights=best_stage2_config['weights']
+        )
+        evaluate_multilabel_model(stage2_model, X_test_stage2, Y_test_stage2, "Stage 2 Final Model")
+        # Save Stage 2 model
+        stage2_model_path = os.path.join(DATA_DIRECTORY_PATH, "knn_stage2_multilabel.pkl")
+        with open(stage2_model_path, 'wb') as f:
+            pickle.dump(stage2_model, f)
+        print(f"\n✓ Stage 2 model saved to {stage2_model_path}")
+        # Save label encoder
+        mlb_path = os.path.join(DATA_DIRECTORY_PATH, "label_encoder_stage2.pkl")
+        with open(mlb_path, 'wb') as f:
+            pickle.dump(mlb, f)
+        print(f"✓ Label encoder saved to {mlb_path}")
+    else:
+        print("No valid Stage 2 configuration found. Skipping Stage 2 model training and saving.")
     
     # ===== EVALUATE COMPLETE TWO-STAGE SYSTEM =====
     print("\n" + "="*60)
@@ -587,12 +609,15 @@ if __name__ == "__main__":
     Y_train_full, mlb_full = encode_predictor_labels(train[1], exclude_no_finding=False)
     Y_test_full, _ = encode_predictor_labels(test[1], exclude_no_finding=False)
     
-    accuracy, hamming, f1_macro, f1_micro, jaccard, Y_final = evaluate_twostage_system(
-        stage1_model, stage2_model, 
-        X_test_encoded, Y_test_binary, Y_test_full,
-        X_test_encoded, mlb, mlb_full,
-        "Two-Stage KNN System"
-    )
+    if 'stage2_model' in locals():
+        accuracy, hamming, f1_macro, f1_micro, jaccard, Y_final = evaluate_twostage_system(
+            stage1_model, stage2_model, 
+            X_test_encoded, Y_test_binary, Y_test_full,
+            X_test_encoded, mlb, mlb_full,
+            "Two-Stage KNN System"
+        )
+    else:
+        print("Skipping final two-stage evaluation: stage2_model not available.")
     
     # Print final summary
     print("\n" + "="*60)
