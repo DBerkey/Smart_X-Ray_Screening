@@ -16,12 +16,17 @@
     <p style="text-align: justify;">
     Uploading an X-Ray image to the Smart X-Ray Screening application is a straightforward process. 
     It is also a crucial step, since it is imposibble to start the analysis without first uploading an image. <br>
-    In order to upload an X-Ray image for analysis, you need to click on the blue "Upload" button located on the home page of the application. 
-    This will open a file selection dialog where you can choose the X-Ray image file from your device. 
-    After selecting the desired image file, click on the "Open" button in the file dialog.<br>
-    You will then see the name of the selected file displayed above the "Upload" button, and you will be able to see a preview of the image, so you can ensure that the right image was picked. <br>
+    In order to upload an X-Ray image for analysis, you need follow these steps:
+    <ol>
+      <li>Click on the blue "Upload" button located on the home page of the application.</li>
+      <li>This will open a file selection dialog; here you can choose the X-Ray image file from your device.</li>
+      <li>After selecting the desired image file, click on the "Open" button in the file dialog.</li>
+      <li>You will then see the name of the selected file displayed above the "Upload" button, and you will be able to see a preview of the image, so you can ensure that the right image was picked.</li>
+      <li>Select the patient's sex and age, as well as the view of the X-ray scan, from the provided dropdown menus.</li>
+      <li>Finally, click on the green "Submit" button to start the analysis of the uploaded X-Ray image.</li>
+    </ol>
     It is important to note that it is not possible to upload multiple images at once; only one image can be uploaded at a time. <br>
-    The last step after uploading the image and before being able to start the analysis by clicking on the "Submit" button is to select the patient's sex and age from the provided dropdown menus. <br>
+    
     </p>
     <figure style="display:grid;place-items:center;margin:1rem 0">
     <img src="{{ url_for('static', filename='file_upload.gif') }}"
@@ -39,11 +44,11 @@
     Additionally, a detailed table lists each detected finding, including the class of abnormality, the confidence level of the detection, and the specific location within the X-Ray image. 
     This comprehensive breakdown allows for a deeper understanding of the analysis results, enabling you to make informed decisions based on the findings presented. <br>
     There is also the option to export the results as a PDF document for easy sharing and record-keeping, or to print the results directly from the application.
-    </p>
+    
+   </p>
     <figure style="display:grid;place-items:center;margin:1rem 0">
     <img src="{{ url_for('static', filename='file_submit.gif') }}"
-       alt="Click Submit and " width="720" loading="lazy">
+       alt="Click Submit and See Results " width="720" loading="lazy">
     </figure>
-
     
 {% endblock %}

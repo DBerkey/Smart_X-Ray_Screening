@@ -1,7 +1,6 @@
 # flaskr/analyze.py
 from PIL import Image, UnidentifiedImageError
 import json
-import shutil
 import mimetypes
 from io import BytesIO
 from datetime import datetime, timezone
