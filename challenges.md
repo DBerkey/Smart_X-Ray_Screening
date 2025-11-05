@@ -34,3 +34,8 @@ to pass further information to the following processing stage we extract edges u
 adding these into a png was not possible so we save them in a npy file
 
 is adding the sift features really reasonable in the preprocessing stage? storing it takes a significant amount of space and the sift features depend on parameters that might be better tuned later in the pipeline.
+
+# some reversions
+- set defaults to more reasonable values
+- output reverted to a .png file
+- added some median blur to reduce noise while preserving edges

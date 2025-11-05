@@ -73,7 +73,7 @@ def build_output_data(images):
     return output
 
 
-def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False,
+def preprocess_xray(image_path, output_size=(500, 500), show_process=False,
                     process_types=None):
     """
     Apply standard preprocessing pipeline to an X-ray image.
@@ -93,7 +93,8 @@ def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False,
     # Image processing log
     workbench = []
     processed = []
-    # Load the image
+    
+    # Load the image in grayscale
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     workbench.append(image)
 
@@ -112,10 +113,14 @@ def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False,
     hsv_clahe = cv2.merge([h, s, v_clahe])
     workbench.append(hsv_clahe)
 
-    # Convert back to grayscale for consistency
+    # Convert back to grayscale
     gray_clahe = cv2.cvtColor(hsv_clahe, cv2.COLOR_HSV2BGR)
     gray_clahe = cv2.cvtColor(gray_clahe, cv2.COLOR_BGR2GRAY)
     workbench.append(gray_clahe)
+
+    # Apply median blur to reduce noise while preserving edges
+    denoised = cv2.medianBlur(gray_clahe, 5)
+    workbench.append(denoised)
 
     # Resize to target size
     resized = cv2.resize(workbench[-1], output_size)
@@ -149,7 +154,7 @@ def preprocess_xray(image_path, output_size=(2500, 2048), show_process=False,
     return output_data
 
 
-def preprocess_batch(input_dir, output_dir, output_size=(2500, 2048),
+def preprocess_batch(input_dir, output_dir, output_size=(500, 500),
                      num_threads=NUM_THREADS, process_types=None):
     """
     Preprocess all X-ray images in a directory and save them to an output directory.
@@ -181,7 +186,7 @@ def preprocess_batch(input_dir, output_dir, output_size=(2500, 2048),
 
 
 def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS,
-                                  output_size=(2500, 2048), process_types=None):
+                                  output_size=(500, 500), process_types=None):
     """
     Preprocess a list of image filepaths using multiple threads.
     
@@ -208,18 +213,20 @@ def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS
                 filepath, output_size, process_types=process_types
             )
             
-            # Check if multi-channel output
+            # Convert multi-channel to grayscale by averaging channels
             if len(processed_image.shape) == 3 and processed_image.shape[2] > 1:
-                # Save as numpy file for multi-channel data
-                output_path = os.path.join(output_dir, f"processed_{base_name}.npy")
-                np.save(output_path, processed_image)
+                # Merge channels by taking the mean across channels
+                grayscale_image = np.mean(processed_image, axis=2).astype(np.uint8)
+            elif len(processed_image.shape) == 3:
+                # Single channel stored as 3D array
+                grayscale_image = processed_image[:, :, 0]
             else:
-                # Save as image for single channel
-                output_path = os.path.join(output_dir, f"processed_{filename}")
-                # Handle single channel stored as 3D array
-                if len(processed_image.shape) == 3:
-                    processed_image = processed_image[:, :, 0]
-                cv2.imwrite(output_path, processed_image)
+                # Already 2D grayscale
+                grayscale_image = processed_image
+            
+            # Save as grayscale PNG
+            output_path = os.path.join(output_dir, f"processed_{base_name}.png")
+            cv2.imwrite(output_path, grayscale_image)
             return True, filepath
         except (IOError, ValueError) as e:
             return False, f"{filepath}: {str(e)}"
@@ -243,19 +250,14 @@ if __name__ == "__main__":
     preprocess_batch(
         INPUT_DIRECTORY,
         OUTPUT_DIRECTORY,
-        process_types=['standard', 'edges']
+        process_types=['standard']
     )
 
     # Uncomment to test single image processing with process visualization
-    preprocess_xray('images/00000001_000.png', show_process=True)
+    # preprocess_xray('images/00000001_000.png', show_process=True)
 
-    img = np.load('preprocessed/processed_00000001_000.npy')
-    
-    # Add a third channel of zeros to make it n*m*3 for display
-    empty_channel = np.zeros(img.shape[:2], dtype=np.uint8)
-    empty_channel = np.expand_dims(empty_channel, axis=-1)
-    img = np.concatenate([img, empty_channel], axis=-1)
-    
-    cv2.imshow("Processed Image", img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # Load and display processed grayscale image
+    # img = cv2.imread('preprocessed/processed_00000001_000.png', cv2.IMREAD_GRAYSCALE)
+    # cv2.imshow("Processed Image", img)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
