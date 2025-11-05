@@ -1,18 +1,21 @@
 # flaskr/analyze.py
+import os
 from PIL import Image, UnidentifiedImageError
 import json
 import mimetypes
 from io import BytesIO
 from datetime import datetime, timezone
 from pathlib import Path
-import sys
+import sys, json
 from typing import Tuple, Optional
+import numpy as np
+import cv2
 
-repo_root = Path(__file__).resolve().parents[2]
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from Preprocessing.preprocessing import run_preprocessing
+from Preprocessing.preprocessing import preprocess_xray
 
 from flask import (
     Blueprint, current_app, request, redirect, url_for, session, abort, send_file
@@ -58,15 +61,48 @@ def _save_direct_to_interfaces_input(upload_file) -> Path:
     upload_file.save(saved_path)
     return saved_path
 
-def _try_run_interfaces_pipeline(copied_input: Path) -> None:
+def _try_run_interfaces_pipeline(input_image_path: Path) -> Path:
+    """
+    Run the preprocessing pipeline on the uploaded image.
+    Args:
+        input_image_path (Path): Path to the input image file.
+    """
     _, _, preproc_dir, processed_dir = _interfaces_paths()
-    run_preprocessing(
-        str(copied_input),
-        str(preproc_dir),
-        str(processed_dir),
+    preproc_dir.mkdir(parents=True, exist_ok=True)
+    processed_dir.mkdir(parents=True, exist_ok=True)
+
+    # Run the existing preprocessing on a single image
+    out = preprocess_xray(
+        str(input_image_path),
         output_size=(500, 500),
-        process_types=('standard',)
+        process_types=['standard']  
     )
+    if not isinstance(out, np.ndarray):
+        raise ValueError("preprocess_xray() did not return a numpy array")
+
+    # Ensure a 2D uint8 image for cv2.imwrite
+    if out.ndim == 3 and out.shape[2] > 1:
+        gray = np.mean(out, axis=2).astype(np.uint8)
+    elif out.ndim == 3:
+        gray = out[:, :, 0].astype(np.uint8)
+    else:
+        gray = out.astype(np.uint8)
+
+    out_img_path = preproc_dir / "pre_processed_img.png"
+    cv2.imwrite(str(out_img_path), gray)
+
+    # Minimal results JSON (update later with real detections)
+    results_json = {
+        "findings": [],
+        "overall_conf": None
+    }
+    (processed_dir / "processed_data.json").write_text(
+        json.dumps(results_json, ensure_ascii=False, indent=2),
+        encoding="utf-8"
+    )
+
+    return out_img_path
+
 
 
 def _load_interfaces_outputs(preproc_dir: Path, processed_dir: Path):
@@ -234,6 +270,7 @@ def analyze_upload():
     payload = {
     "image_area": area,
     "image_name": image_name,
+    "input_image_name": saved_in_input.name,
     "num_findings": len(findings),
     "findings": findings,
     "patient": {"sex": sex, "age": age, "view": view} if (sex or age or view is not None) else None,

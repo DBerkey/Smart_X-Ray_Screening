@@ -39,10 +39,24 @@ def export_pdf():
 
     # Resolve the image path from the saved area/name
     _, input_dir, preproc_dir, processed_dir = _interfaces_paths()
-    base = {"Input": input_dir, "PreProcess": preproc_dir, "Processed": processed_dir}.get(
-        payload.get("image_area")
-    )
-    image_path = (base / payload.get("image_name")).resolve() if base else None
+    candidates = []
+
+    # 1) annotated (what the UI showed)
+    area = payload.get("image_area")
+    name = payload.get("image_name")
+    if area == "PreProcess" and name:
+        candidates.append((preproc_dir / name))
+
+    # 2) original input (always kept)
+    orig_name = payload.get("input_image_name")
+    if orig_name:
+        candidates.append((input_dir / orig_name))
+
+    # 3) if the UI actually showed the input file
+    if area == "Input" and name:
+        candidates.insert(0, (input_dir / name))
+
+    image_path = next((p.resolve() for p in candidates if p and p.exists()), None)
 
     # Fallback if the file was ephemeral or missing
     if not image_path or not image_path.exists():
