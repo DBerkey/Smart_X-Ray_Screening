@@ -45,7 +45,7 @@ def _is_valid_image(path: Path) -> bool:
         with Image.open(path) as im:
             im.verify()  # validate file integrity
             fmt = (im.format or "").lower()
-        return fmt in {"png", "jpeg", "jpg", "gif", "bmp"}
+        return fmt in {"png", "jpeg", "jpg", "bmp"}
     except UnidentifiedImageError:
         return False
     except Exception:
