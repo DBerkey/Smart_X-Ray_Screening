@@ -24,6 +24,7 @@ import numpy as np
 from PIL import Image
 import gc
 import pickle 
+import cv2
 
 def split_data_train_test_eval(x, y, test_size=0.195, eval_size=0.005): 
     """
@@ -353,17 +354,18 @@ def evaluate_twostage_system(stage1_model, stage2_model, X_test, Y_test_binary, 
     has_finding_indices = np.where(Y_stage1_pred == 1)[0]
     if len(has_finding_indices) > 0:
         X_has_findings = X_test_encoded[has_finding_indices]
-        Y_stage2_pred = stage2_model.predict(X_has_findings)
-        
-        # Map Stage 2 predictions to full label space
-        # Stage 2 mlb has labels excluding "No Finding"
-        # Full mlb has all labels including "No Finding"
+        # For each sample, run all disease models and build multi-label prediction
         for i, idx in enumerate(has_finding_indices):
-            # Get the indices of the labels in the full mlb
+            sample = X_has_findings[i].reshape(1, -1)
             for j, label in enumerate(mlb_stage2.classes_):
+                if label in stage2_model:
+                    pred = stage2_model[label].predict(sample)[0]
+                else:
+                    pred = 0
+                # Map to full label space
                 if label in mlb_full.classes_:
                     full_label_idx = np.where(mlb_full.classes_ == label)[0][0]
-                    Y_final_pred[idx, full_label_idx] = Y_stage2_pred[i, j]
+                    Y_final_pred[idx, full_label_idx] = pred
     
     # Calculate overall metrics
     accuracy = accuracy_score(
@@ -421,6 +423,10 @@ if __name__ == "__main__":
     processed_data_path = os.path.join(DATA_DIRECTORY_PATH, "processed_features.npz")
     scaler_path = os.path.join(DATA_DIRECTORY_PATH, "feature_scaler.pkl")
 
+    # ===== TRAINING CONTROL FLAGS =====
+    TRAIN_STAGE1 = False   # Set to False to load existing Stage 1 model
+    TRAIN_STAGE2 = True   # Set to False to load existing Stage 2 models
+
     # Read metadata and split data
     df = pd.read_csv(images_metadata_path)
     img_files = set(os.listdir(images_folder_path))
@@ -441,11 +447,11 @@ if __name__ == "__main__":
         print(f"✓ Loaded preprocessed data: X_train shape = {X_train_encoded.shape}, X_test shape = {X_test_encoded.shape}")
     else:
         print("\n=== Extracting HOG Features for Training Data ===")
-        X_train_hog = get_hog_feature_matrix(images_folder_path, pd.DataFrame(train[0]), img_size, batch_size=batch_size)
+        X_train_feat = get_hog_feature_matrix(images_folder_path, pd.DataFrame(train[0]), img_size, batch_size=batch_size)
         print("\n=== Extracting HOG Features for Test Data ===")
-        X_test_hog = get_hog_feature_matrix(images_folder_path, pd.DataFrame(test[0]), img_size, batch_size=batch_size)
-        print("\n=== Standardizing HOG Features ===")
-        X_train_std, X_test_std, _, feature_scaler = standardize_pca_features(X_train_hog, X_test_hog)
+        X_test_feat = get_hog_feature_matrix(images_folder_path, pd.DataFrame(test[0]), img_size, batch_size=batch_size)
+        print("\n=== Standardizing Features ===")
+        X_train_std, X_test_std, _, feature_scaler = standardize_pca_features(X_train_feat, X_test_feat)
         print(f"Features standardized (mean≈0, std≈1)")
         X_train_encoded = encode_scale_input_features(pd.DataFrame(train[0]), X_train_std)
         X_test_encoded = encode_scale_input_features(pd.DataFrame(test[0]), X_test_std)
@@ -457,18 +463,6 @@ if __name__ == "__main__":
         print(f"✓ Saving feature scaler to {scaler_path}")
         with open(scaler_path, 'wb') as f:
             pickle.dump(feature_scaler, f)
-            X_train_std, X_test_std, _, feature_scaler = standardize_pca_features(X_train_hog, X_test_hog)
-            print(f"Features standardized (mean≈0, std≈1)")
-            X_train_encoded = encode_scale_input_features(pd.DataFrame(train[0]), X_train_std)
-            X_test_encoded = encode_scale_input_features(pd.DataFrame(test[0]), X_test_std)
-            print(f"\n=== Saving Processed Data ===")
-            np.savez_compressed(processed_data_path, 
-                                X_train_encoded=X_train_encoded,
-                                X_test_encoded=X_test_encoded)
-            print(f"✓ Saved to {processed_data_path}")
-            print(f"✓ Saving feature scaler to {scaler_path}")
-            with open(scaler_path, 'wb') as f:
-                pickle.dump(feature_scaler, f)
     print("\n" + "="*60)
     print("STAGE 1: BINARY CLASSIFICATION (Finding vs No Finding)")
     print("="*60)
@@ -478,163 +472,128 @@ if __name__ == "__main__":
     Y_train_binary = create_binary_labels(train_debug[1])
     Y_test_binary = create_binary_labels(test_debug[1])
 
-    print(f"Training SVM on {len(X_train_encoded)} samples...")
-    svm_config = {'C': 1.0, 'kernel': 'rbf', 'gamma': 'scale', 'probability': False}
-    stage1_model = train_svm_model(X_train_encoded, Y_train_binary, svm_config)
-    print("SVM training complete.")
-
-    print("\nEvaluating Stage 1 Model...")
-    accuracy, _, precision, recall, best_stage1_f1 = evaluate_binary_model(stage1_model, X_test_encoded, Y_test_binary, "Stage 1 SVM Model")
-    print("\n" + "="*60)
-    print("BEST STAGE 1 CONFIGURATION")
-    print("="*60)
-    print(f"C: {svm_config['C']}, kernel: {svm_config['kernel']}, gamma: {svm_config['gamma']}")
-    if isinstance(best_stage1_f1, (np.ndarray, list, tuple)):
-        if len(best_stage1_f1) == 2:
-            print(f"F1 Score (No Finding): {best_stage1_f1[0]:.4f}")
-            print(f"F1 Score (Has Finding): {best_stage1_f1[1]:.4f}")
-        else:
-            print(f"Mean F1 Score: {np.mean(best_stage1_f1):.4f}")
-    else:
-        print(f"Best F1 Score: {best_stage1_f1:.4f}")
-    print(f"Accuracy: {accuracy:.4f}")
-    if isinstance(precision, (np.ndarray, list, tuple)) and isinstance(recall, (np.ndarray, list, tuple)):
-        if len(precision) == 2 and len(recall) == 2:
-            print(f"Precision (No Finding): {precision[0]:.4f}, Precision (Has Finding): {precision[1]:.4f}")
-            print(f"Recall (No Finding): {recall[0]:.4f}, Recall (Has Finding): {recall[1]:.4f}")
-        else:
-            print(f"Mean Precision: {np.mean(precision):.4f}, Mean Recall: {np.mean(recall):.4f}")
-    else:
-        print(f"Precision: {precision:.4f}, Recall: {recall:.4f}")
-    # Save Stage 1 model
     stage1_model_path = os.path.join(DATA_DIRECTORY_PATH, "svm_stage1_binary.pkl")
-    with open(stage1_model_path, 'wb') as f:
-        pickle.dump(stage1_model, f)
-    print(f"\n✓ Stage 1 model saved to {stage1_model_path}")
+    if TRAIN_STAGE1:
+        print(f"Training SVM on {len(X_train_encoded)} samples...")
+        svm_config = {'C': 1.0, 'kernel': 'rbf', 'gamma': 'scale', 'probability': False}
+        stage1_model = train_svm_model(X_train_encoded, Y_train_binary, svm_config)
+        print("SVM training complete.")
+        print("\nEvaluating Stage 1 Model...")
+        accuracy, _, precision, recall, best_stage1_f1 = evaluate_binary_model(stage1_model, X_test_encoded, Y_test_binary, "Stage 1 SVM Model")
+        print("\n" + "="*60)
+        print("BEST STAGE 1 CONFIGURATION")
+        print("="*60)
+        print(f"C: {svm_config['C']}, kernel: {svm_config['kernel']}, gamma: {svm_config['gamma']}")
+        if isinstance(best_stage1_f1, (np.ndarray, list, tuple)):
+            if len(best_stage1_f1) == 2:
+                print(f"F1 Score (No Finding): {best_stage1_f1[0]:.4f}")
+                print(f"F1 Score (Has Finding): {best_stage1_f1[1]:.4f}")
+            else:
+                print(f"Mean F1 Score: {np.mean(best_stage1_f1):.4f}")
+        else:
+            print(f"Best F1 Score: {best_stage1_f1:.4f}")
+        print(f"Accuracy: {accuracy:.4f}")
+        if isinstance(precision, (np.ndarray, list, tuple)) and isinstance(recall, (np.ndarray, list, tuple)):
+            if len(precision) == 2 and len(recall) == 2:
+                print(f"Precision (No Finding): {precision[0]:.4f}, Precision (Has Finding): {precision[1]:.4f}")
+                print(f"Recall (No Finding): {recall[0]:.4f}, Recall (Has Finding): {recall[1]:.4f}")
+            else:
+                print(f"Mean Precision: {np.mean(precision):.4f}, Mean Recall: {np.mean(recall):.4f}")
+        else:
+            print(f"Precision: {precision:.4f}, Recall: {recall:.4f}")
+        with open(stage1_model_path, 'wb') as f:
+            pickle.dump(stage1_model, f)
+        print(f"\n✓ Stage 1 model saved to {stage1_model_path}")
+    else:
+        print(f"Loading existing Stage 1 model from {stage1_model_path}")
+        with open(stage1_model_path, 'rb') as f:
+            stage1_model = pickle.load(f)
 
-    # ===== STAGE 2: MULTI-LABEL CLASSIFICATION =====
+    # ===== STAGE 2: PER-DISEASE BINARY CLASSIFICATION =====
     print("\n" + "="*60)
-    print("STAGE 2: MULTI-LABEL CLASSIFICATION (Specific Conditions)")
+    print("STAGE 2: PER-DISEASE BINARY CLASSIFICATION")
     print("="*60)
-    
-    # Filter training data to only include cases with findings
+
+    # List of diseases (exact names)
+    disease_list = [
+        "Cardiomegaly", "Hernia", "Mass", "Infiltration", "Effusion", "Nodule",
+        "Emphysema", "Atelectasis", "Pneumothorax", "Pleural_Thickening", "Fibrosis",
+        "Consolidation", "Edema", "Pneumonia"
+    ]
+
+    # Filter training and test data to only include cases with findings
     has_finding_train = train[1] != 'No Finding'
     X_train_stage2 = X_train_encoded[has_finding_train]
     y_train_stage2 = train[1][has_finding_train]
-    
+
     has_finding_test = test[1] != 'No Finding'
     X_test_stage2 = X_test_encoded[has_finding_test]
     y_test_stage2 = test[1][has_finding_test]
-    
+
     print(f"\nStage 2 Training samples: {len(X_train_stage2)}")
     print(f"Stage 2 Test samples: {len(X_test_stage2)}")
-    
-    # Encode labels (excluding "No Finding")
-    Y_train_stage2, mlb = encode_predictor_labels(y_train_stage2, exclude_no_finding=True)
-    Y_test_stage2, _ = encode_predictor_labels(y_test_stage2, exclude_no_finding=True)
-    
-    print(f"Number of condition labels: {len(mlb.classes_)}")
-    print(f"Labels: {mlb.classes_}")
-    
-    # Test different configurations for Stage 2
-    stage2_configs = [
-        {'n_neighbors': 200, 'metric': 'euclidean', 'weights': 'distance'},
-        {'n_neighbors': 500, 'metric': 'euclidean', 'weights': 'distance'},
-        {'n_neighbors': 1000, 'metric': 'euclidean', 'weights': 'distance'},
-        {'n_neighbors': 200, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 500, 'metric': 'manhattan', 'weights': 'distance'},
-        {'n_neighbors': 1000, 'metric': 'manhattan', 'weights': 'distance'},
-    ]
-    
-    print(f"\nTesting {len(stage2_configs)} configurations for Stage 2...")
-    
-    best_stage2_f1_macro = 0
-    best_stage2_config = None
-    
-    for i, config in enumerate(stage2_configs):
-        print(f"\n[{i+1}/{len(stage2_configs)}] Testing: k={config['n_neighbors']}, metric={config['metric']}, weights={config['weights']}")
-        
-        knn_stage2 = train_knn_model(
-            X_train_stage2, 
-            Y_train_stage2,
-            n_neighbors=config['n_neighbors'],
-            metric=config['metric'],
-            weights=config['weights']
-        )
-        
-        Y_pred = knn_stage2.predict(X_test_stage2)
-        f1_macro = f1_score(Y_test_stage2, Y_pred, average='macro', zero_division=0)
-        f1_micro = f1_score(Y_test_stage2, Y_pred, average='micro', zero_division=0)
-        
-        print(f"  F1 Macro: {f1_macro:.4f}, F1 Micro: {f1_micro:.4f}")
-        
-        if f1_macro > best_stage2_f1_macro:
-            best_stage2_f1_macro = f1_macro
-            best_stage2_config = config
-    
+
+    stage2_models = {}
+    stage2_metrics = {}
+    for disease in disease_list:
+        model_path = os.path.join(DATA_DIRECTORY_PATH, f"knn_stage2_{disease}.pkl")
+        if TRAIN_STAGE2:
+            print(f"\nTraining binary KNN for: {disease}")
+            # Create binary labels: 1 if disease present, 0 otherwise
+            y_train_binary = y_train_stage2.apply(lambda labels: int(disease in labels.split('|')))
+            y_test_binary = y_test_stage2.apply(lambda labels: int(disease in labels.split('|')))
+
+            # Train KNN model (use default config or customize as needed)
+            knn_model = train_knn_model(
+                X_train_stage2,
+                y_train_binary,
+                n_neighbors=200,  # You can tune this per disease if needed
+                metric='manhattan',
+                weights='distance'
+            )
+
+            # Evaluate model
+            y_pred = knn_model.predict(X_test_stage2)
+            f1 = f1_score(y_test_binary, y_pred, zero_division=0)
+            acc = accuracy_score(y_test_binary, y_pred)
+            print(f"  F1 Score: {f1:.4f}, Accuracy: {acc:.4f}")
+            stage2_models[disease] = knn_model
+            stage2_metrics[disease] = {'f1': f1, 'accuracy': acc}
+
+            # Save model
+            with open(model_path, 'wb') as f:
+                pickle.dump(knn_model, f)
+            print(f"  ✓ Saved model to {model_path}")
+        else:
+            print(f"Loading existing Stage 2 model for {disease} from {model_path}")
+            with open(model_path, 'rb') as f:
+                knn_model = pickle.load(f)
+            stage2_models[disease] = knn_model
+
     print("\n" + "="*60)
-    print("BEST STAGE 2 CONFIGURATION")
+    print("PER-DISEASE MODEL TRAINING SUMMARY")
     print("="*60)
-    if best_stage2_config is not None:
-        print(f"k={best_stage2_config['n_neighbors']}, metric={best_stage2_config['metric']}, weights={best_stage2_config['weights']}")
-        print(f"F1 Macro: {best_stage2_f1_macro:.4f}")
-        # Train final Stage 2 model
-        print("\n=== Training Final Stage 2 Model ===")
-        stage2_model = train_knn_model(
-            X_train_stage2, Y_train_stage2,
-            n_neighbors=best_stage2_config['n_neighbors'],
-            metric=best_stage2_config['metric'],
-            weights=best_stage2_config['weights']
-        )
-        evaluate_multilabel_model(stage2_model, X_test_stage2, Y_test_stage2, "Stage 2 Final Model")
-        # Save Stage 2 model
-        stage2_model_path = os.path.join(DATA_DIRECTORY_PATH, "knn_stage2_multilabel.pkl")
-        with open(stage2_model_path, 'wb') as f:
-            pickle.dump(stage2_model, f)
-        print(f"\n✓ Stage 2 model saved to {stage2_model_path}")
-        # Save label encoder
-        mlb_path = os.path.join(DATA_DIRECTORY_PATH, "label_encoder_stage2.pkl")
-        with open(mlb_path, 'wb') as f:
-            pickle.dump(mlb, f)
-        print(f"✓ Label encoder saved to {mlb_path}")
-    else:
-        print("No valid Stage 2 configuration found. Skipping Stage 2 model training and saving.")
-    
-    # ===== EVALUATE COMPLETE TWO-STAGE SYSTEM =====
+    for disease in disease_list:
+        print(f"{disease}: F1={stage2_metrics[disease]['f1']:.4f}, Acc={stage2_metrics[disease]['accuracy']:.4f}")
+
+
+    # Evaluate the complete two-stage system
     print("\n" + "="*60)
-    print("COMPLETE TWO-STAGE SYSTEM EVALUATION")
+    print("EVALUATING COMPLETE TWO-STAGE SYSTEM")
     print("="*60)
-    
-    # Create full multi-label encoding for complete evaluation
-    Y_train_full, mlb_full = encode_predictor_labels(train[1], exclude_no_finding=False)
-    Y_test_full, _ = encode_predictor_labels(test[1], exclude_no_finding=False)
-    
-    if 'stage2_model' in locals():
-        accuracy, hamming, f1_macro, f1_micro, jaccard, Y_final = evaluate_twostage_system(
-            stage1_model, stage2_model, 
-            X_test_encoded, Y_test_binary, Y_test_full,
-            X_test_encoded, mlb, mlb_full,
-            "Two-Stage KNN System"
-        )
-    else:
-        print("Skipping final two-stage evaluation: stage2_model not available.")
-    
-    # Print final summary
-    print("\n" + "="*60)
-    print("TRAINING SUMMARY")
-    print("="*60)
-    print(f"Total images processed: {len(X_train_encoded) + len(X_test_encoded)}")
-    print(f"Training samples: {len(X_train_encoded)}")
-    print(f"Test samples: {len(X_test_encoded)}")
-    print(f"Image resolution: {img_size}")
-    # PCA/LDA summary removed (not used)
-    # Stage 1 config summary removed (not used)
-    if best_stage2_config is not None:
-        print(f"Stage 2 (Multi-label): k={best_stage2_config['n_neighbors']}, {best_stage2_config['metric']}")
-    else:
-        print("Stage 2 (Multi-label): No valid config found (likely due to small debug subset)")
-    print(f"\nTwo-Stage System Performance:")
-    print(f"  F1 Macro: {f1_macro:.4f}")
-    print(f"  F1 Micro: {f1_micro:.4f}")
-    print(f"  Hamming Loss: {hamming:.4f}")
-    print("="*60)
+
+    # Prepare full multi-label test set
+    Y_test_multilabel, mlb_full = encode_predictor_labels(test[1], exclude_no_finding=False)
+    Y_test_stage2_multilabel, mlb_stage2 = encode_predictor_labels(test[1], exclude_no_finding=True)
+
+    accuracy, hamming, f1_macro, f1_micro, jaccard, Y_final_pred = evaluate_twostage_system(
+        stage1_model, stage2_models, X_test_encoded, Y_test_binary, Y_test_multilabel,
+        X_test_encoded, mlb_stage2, mlb_full, "Two-Stage System" 
+    )
+    print("\nTwo-Stage System Evaluation Complete.")
+    print(f"\nOverall Exact Match Accuracy: {accuracy * 100:.2f}%")
+    print(f"Hamming Loss: {hamming:.4f}")
+    print(f"F1 Score (Macro): {f1_macro:.4f}")
+    print(f"F1 Score (Micro): {f1_micro:.4f}")
+    print(f"Jaccard Score: {jaccard:.4f}")
+    print("\nAll done.")
