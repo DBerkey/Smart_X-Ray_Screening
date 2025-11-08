@@ -16,6 +16,7 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.manifold import TSNE
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
+from imblearn.over_sampling import SMOTE
 import concurrent.futures
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -514,14 +515,14 @@ if __name__ == "__main__":
     print("STAGE 2: PER-DISEASE BINARY CLASSIFICATION")
     print("="*60)
 
-    # List of diseases (exact names)
+        # List of diseases (exact names)
     disease_list = [
         "Cardiomegaly", "Hernia", "Mass", "Infiltration", "Effusion", "Nodule",
         "Emphysema", "Atelectasis", "Pneumothorax", "Pleural_Thickening", "Fibrosis",
         "Consolidation", "Edema", "Pneumonia"
     ]
 
-    # Filter training and test data to only include cases with findings
+    # Prepare training and test sets for stage 2
     has_finding_train = train[1] != 'No Finding'
     X_train_stage2 = X_train_encoded[has_finding_train]
     y_train_stage2 = train[1][has_finding_train]
@@ -529,40 +530,46 @@ if __name__ == "__main__":
     has_finding_test = test[1] != 'No Finding'
     X_test_stage2 = X_test_encoded[has_finding_test]
     y_test_stage2 = test[1][has_finding_test]
-
-    print(f"\nStage 2 Training samples: {len(X_train_stage2)}")
-    print(f"Stage 2 Test samples: {len(X_test_stage2)}")
-
     stage2_models = {}
     stage2_metrics = {}
+
     for disease in disease_list:
-        model_path = os.path.join(DATA_DIRECTORY_PATH, f"knn_stage2_{disease}.pkl")
+        model_path = os.path.join(DATA_DIRECTORY_PATH, f"svm_stage2_{disease}.pkl")
         if TRAIN_STAGE2:
-            print(f"\nTraining binary KNN for: {disease}")
+            print(f"\nTraining binary SVM for: {disease}")
             # Create binary labels: 1 if disease present, 0 otherwise
             y_train_binary = y_train_stage2.apply(lambda labels: int(disease in labels.split('|')))
             y_test_binary = y_test_stage2.apply(lambda labels: int(disease in labels.split('|')))
 
-            # Train KNN model (use default config or customize as needed)
-            knn_model = train_knn_model(
-                X_train_stage2,
-                y_train_binary,
-                n_neighbors=200,  # You can tune this per disease if needed
-                metric='manhattan',
-                weights='distance'
+            # Use SMOTE to balance the training set
+            smote = SMOTE(random_state=42)
+            try:
+                X_train_balanced, y_train_balanced = smote.fit_resample(X_train_stage2, y_train_binary)
+            except ValueError as e:
+                print(f"  Skipping {disease}: SMOTE error: {e}")
+                continue
+
+            # SVM config for per-disease classifier
+            svm_config = {'C': 1.0, 'kernel': 'rbf', 'gamma': 'scale', 'probability': False}
+            if len(X_train_balanced) < 2:
+                print(f"  Skipping {disease}: not enough samples for SVM.")
+                continue
+            svm_model = train_svm_model(
+                X_train_balanced,
+                y_train_balanced,
+                svm_config
             )
 
             # Evaluate model
-            y_pred = knn_model.predict(X_test_stage2)
+            y_pred = svm_model.predict(X_test_stage2)
             f1 = f1_score(y_test_binary, y_pred, zero_division=0)
             acc = accuracy_score(y_test_binary, y_pred)
             print(f"  F1 Score: {f1:.4f}, Accuracy: {acc:.4f}")
-            stage2_models[disease] = knn_model
+            stage2_models[disease] = svm_model
             stage2_metrics[disease] = {'f1': f1, 'accuracy': acc}
 
-            # Save model
             with open(model_path, 'wb') as f:
-                pickle.dump(knn_model, f)
+                pickle.dump(svm_model, f)
             print(f"  ✓ Saved model to {model_path}")
         else:
             print(f"Loading existing Stage 2 model for {disease} from {model_path}")
