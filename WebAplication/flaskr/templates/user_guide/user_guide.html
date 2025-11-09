@@ -7,27 +7,48 @@
 
     <h2>What type of images are accepted</h2>
     <p style="text-align: justify;">
-    Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
-        magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
-        consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-        Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+    The Smart X-Ray Screening application is designed to analyze chest X-Ray images. 
+    It is important to ensure that the images you upload are indeed chest X-Rays, as the application is specifically trained to interpret this type of medical imaging. <br>
+    Acceptable image formats are JPG, JPEG, PNG and BMP.
     </p>
 
     <h2>How to upload an image</h2>
     <p style="text-align: justify;">
-    Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
-        magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
-        consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-        Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+    Uploading an X-Ray image to the Smart X-Ray Screening application is a straightforward process. 
+    It is also a crucial step, since it is imposibble to start the analysis without first uploading an image. <br>
+    In order to upload an X-Ray image for analysis, you need follow these steps:
+    <ol>
+      <li>Click on the blue "Upload" button located on the home page of the application.</li>
+      <li>This will open a file selection dialog; here you can choose the X-Ray image file from your device.</li>
+      <li>After selecting the desired image file, click on the "Open" button in the file dialog.</li>
+      <li>You will then see the name of the selected file displayed above the "Upload" button, and you will be able to see a preview of the image, so you can ensure that the right image was picked.</li>
+      <li>Select the patient's sex and age, as well as the view of the X-ray scan, from the provided dropdown menus.</li>
+      <li>Finally, click on the green "Submit" button to start the analysis of the uploaded X-Ray image.</li>
+    </ol>
+    It is important to note that it is not possible to upload multiple images at once; only one image can be uploaded at a time. <br>
+    
     </p>
+    <figure style="display:grid;place-items:center;margin:1rem 0">
+    <img src="{{ url_for('static', filename='file_upload.gif') }}"
+       alt="Click Upload and select a file" width="720" loading="lazy">
+    </figure>
+    
 
     <h2>Understanding the results</h2>
     <p style="text-align: justify;">
-    Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
-        magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
-        consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-        Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-    </p>
-
+    Once the analysis of the uploaded X-Ray image is complete, the Smart X-Ray Screening application provides a detailed results page that includes several key components to help you understand the findings. <br>
+    The results page features an annotated image area where the analyzed X-Ray image is displayed with red bounding boxes highlighting any detected abnormalities. 
+    This visual representation allows you to easily identify areas of concern within the X-Ray. <br>
+    Alongside the annotated image, there is a summary section that provides an overview of the analysis results. 
+    This section includes the total number of diseases found in the X-Ray image, giving you a quick snapshot of the patient's condition. <br>
+    Additionally, a detailed table lists each detected finding, including the class of abnormality, the confidence level of the detection, and the specific location within the X-Ray image. 
+    This comprehensive breakdown allows for a deeper understanding of the analysis results, enabling you to make informed decisions based on the findings presented. <br>
+    There is also the option to export the results as a PDF document for easy sharing and record-keeping, or to print the results directly from the application.
+    
+   </p>
+    <figure style="display:grid;place-items:center;margin:1rem 0">
+    <img src="{{ url_for('static', filename='file_submit.gif') }}"
+       alt="Click Submit and See Results " width="720" loading="lazy">
+    </figure>
     
 {% endblock %}

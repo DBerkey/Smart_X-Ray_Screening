@@ -29,3 +29,6 @@ black>=21.0.0
 # ML training
 scikit-image>=0.19.0
 imbalanced-learn>=0.8.0
+
+# File export
+reportlab>=4.0  # PDF generation

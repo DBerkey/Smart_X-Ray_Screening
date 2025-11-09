@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+
+{% block title %}Results{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <!-- Title -->
+        <h2 class="m-0">Analysis Results</h2>
+
+        <!-- Buttons for exporting results -->
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" type="button" onclick="window.print()">Print</button>
+            <a class="btn btn-primary" href="{{ url_for('results.export_pdf') }}">Export as PDF</a>
+        </div>
+    </div>
+
+    <!-- Findings -->
+    <div class="row">
+        <div class="col-md-7 mb-3">
+            <!-- Area for final image with localized abnormalities -->
+            <div class="border rounded d-flex align-items-center justify-content-center"
+                style="min-height: 420px; background: #f8f9fa;">
+                {% if image_url %}
+                <img src="{{ image_url }}" alt="Annotated result" class="img-fluid rounded"
+                    style="max-height: 600px; object-fit: contain;">
+                {% else %}
+                <div class="text-muted text-center p-4">
+                    <div class="mb-2"><strong>No image available</strong></div>
+                    <div>This area will display the annotated image (with red bounding boxes) once available.</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Area for findings summary and table -->
+        <div class="col-md-5 mb-3">
+            <div class="row">
+                <div class="col-12 mb-3">
+                    <div class="border rounded p-3 h-100">
+                        <div class="text-muted">Diseases Found</div>
+                        <div class="display-6">{{ num_findings if num_findings is not none else 0 }}</div>
+                    </div>
+                </div>
+                
+            </div>
+
+            <div class="border rounded p-3">
+                <h5 class="mb-3">Detected Findings</h5>
+                {% if findings and findings|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th scope="col">#</th>
+                                <th scope="col">Class</th>
+                                <th scope="col" class="text-center">Confidence</th>
+                                <th scope="col" class="text-center">Location</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for f in findings %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ f.label }}</td>
+                                <td class="text-center">
+                                    {% if f.score is not none %}
+                                    {{ ((f.score | float) * 100) | round(1) }}%
+                                    {% else %}
+                                    —
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if f.bbox is defined %}
+                                    [{{ f.bbox[0] }}, {{ f.bbox[1] }}, {{ f.bbox[2] }}, {{ f.bbox[3] }}]
+                                    {% else %}
+                                    —
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No findings to display.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Patient details and generation time -->
+    {% if patient %}
+    <div class="border rounded p-3 mt-3">
+        <h5 class="mb-2">Patient Details</h5>
+        <div class="d-flex flex-wrap">
+          <div class="mr-4 mb-2"><strong>Sex:</strong> {{ patient.sex if patient.sex is defined else '—' }}</div>
+          <div class="mr-4 mb-2"><strong>Age:</strong> {{ patient.age if patient.age is defined else '—' }}</div>
+          <div class="mr-4 mb-2"><strong>View:</strong> {{ patient.view if patient.view is defined else '—' }}</div>
+          {% if patient.patient_id %}<div class="mr-4 mb-2"><strong>ID:</strong> {{ patient.patient_id }}</div>{% endif %}
+    </div>
+    </div>
+    {% endif %}
+
+    {% if generated_at %}
+    <div class="text-muted mt-3">Generated: {{ generated_at }}</div>
+    {% endif %}
+
+</div>
+{% endblock %}
