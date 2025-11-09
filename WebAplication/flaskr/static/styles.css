@@ -1,0 +1,18 @@
+/* Custom nav link colors */
+.nav-pills .nav-link {
+    color: #04293E !important;
+}
+
+.nav-pills .nav-link:hover {
+    color: #04293E !important;
+    background-color: rgba(4, 41, 62, 0.1) !important;
+}
+
+.nav-pills .nav-link.active {
+    background-color: #04293E !important;
+    color: white !important;
+}
+
+ #myFileInput {
+    display:none;
+}

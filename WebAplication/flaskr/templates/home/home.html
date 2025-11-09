@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block header %}
+<script src="{{ url_for('static', filename='script.js') }}" defer></script>
+{% endblock %}
+
+{% block content %}
+<p style="text-align: center;"> Welcome to the Smart X-Ray Screening application! Please upload an X-Ray image to begin
+  the screening process.
+  <br> Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
+  magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
+  consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+  Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum
+</p>
+
+<div style="text-align: center; margin: 20px;">
+  <input type="text" id="filenameField" placeholder="No file selected" readonly
+    style="width: 400px; text-align: center;">
+</div>
+
+<input type="file" id="myFileInput" accept="image/*" onchange="handleImageUpload(this)"  />
+
+<div class="bd-example m-0 border-0 d-flex justify-content-center">
+  <button name="upload" class="btn btn-primary mr-3" type="button" onclick="document.getElementById('myFileInput').click()">Upload</button>
+  <button name="submit" class="btn btn-success" type="submit" onclick="myFunction2()">Submit</button>
+</div>
+
+<div class="text-center mt-3">
+  <img id="imagePreview" class="img-fluid d-none"
+       alt="Preview"
+       style="max-width: 600px; max-height: 400px; object-fit: contain; border-radius: 6px;">
+</div>
+
+
+
+{% endblock %}
