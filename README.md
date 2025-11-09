@@ -116,3 +116,37 @@ python test_preprocessing.py
 - Enhanced X-ray images optimized for soft tissue detection
 - Pipeline visualization showing processing steps
 - Batch processing progress tracking
+
+# Training Machine learning Models
+### Prerequisites
+1. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. Prepare your data and directories:
+   - Ensure your image data is available in a folder (e.g., `images-preprocessed`)
+   - Place the metadata CSV file (e.g., `Data_Entry_2017_v2020.csv`) in your data directory
+   - Update the paths in `train_model_twostage.py`:
+     ```python
+     DATA_DIRECTORY_PATH = "path/to/your/data-directory"
+     images_folder_path = DATA_DIRECTORY_PATH + "/images-preprocessed"
+     images_metadata_path = DATA_DIRECTORY_PATH + "/Data_Entry_2017_v2020.csv"
+     ```
+
+### Running the training
+
+   ```bash
+   python Model/train_model_twostage.py
+   ```
+
+   - set `LOAD_EXISTING_DATA` flag for if you want to reuse previous proccesd data
+   - Set `TRAIN_STAGE1` and `TRAIN_STAGE2` flags in the script to control which models are trained or loaded.
+   - Preprocessed features and trained models will be saved in the data directory.
+
+### Output
+- Trained binary and multi-label classifiers
+- Saved model files (`.pkl`)
+- Feacher scalers (`.pkl`)
+- Preprocessed feature files (`.npz`)
+- Console summary of training and evaluation metrics
