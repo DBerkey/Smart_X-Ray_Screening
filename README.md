@@ -150,3 +150,19 @@ python test_preprocessing.py
 - Feacher scalers (`.pkl`)
 - Preprocessed feature files (`.npz`)
 - Console summary of training and evaluation metrics
+
+# Webaplication
+### Prerequisites
+1. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. Prepare your data and directories:
+   - to come
+
+### Run Flask
+```bash
+$env:FLASK_APP = "WebAplication/flaskr"
+python -m flask run
+```

@@ -447,7 +447,7 @@ def train_disease_svm(args):
 
 if __name__ == "__main__":
     # ===== CONFIGURATION =====
-    DATA_DIRECTORY_PATH = "path/to/data_directory"  # Update this path accordingly
+    DATA_DIRECTORY_PATH = "C:\\Users\\berke\\OneDrive\\Documenten\\school\\UiA\\Smart_X-Ray_Screening_img-data"  # Update this path accordingly
     images_folder_path = DATA_DIRECTORY_PATH + "/images_M-preprocessed"
     images_metadata_path = DATA_DIRECTORY_PATH + "/Data_Entry_2017_v2020.csv"
     
@@ -456,7 +456,7 @@ if __name__ == "__main__":
     n_pca_components = 1000     
     batch_size = 1000           # Must be >= n_pca_components for IncrementalPCA 
 
-    LOAD_EXISTING_DATA = True   # Set to True to skip image loading and PCA or LDA transformation
+    LOAD_EXISTING_DATA = False   # Set to True to skip image loading
 
     batch_size = 100
     processed_data_path = os.path.join(DATA_DIRECTORY_PATH, "processed_features.npz")
@@ -464,7 +464,7 @@ if __name__ == "__main__":
 
     # ===== TRAINING CONTROL FLAGS =====
     TRAIN_STAGE1 = False   # Set to False to load existing Stage 1 model
-    TRAIN_STAGE2 = True   # Set to False to load existing Stage 2 models
+    TRAIN_STAGE2 = False   # Set to False to load existing Stage 2 models
 
     # Read metadata and split data
     df = pd.read_csv(images_metadata_path)
@@ -484,6 +484,25 @@ if __name__ == "__main__":
         with open(scaler_path, 'rb') as f:
             feature_scaler = pickle.load(f)
         print(f"✓ Loaded preprocessed data: X_train shape = {X_train_encoded.shape}, X_test shape = {X_test_encoded.shape}")
+        # Load encoders if they exist
+        sex_encoder_path = os.path.join(DATA_DIRECTORY_PATH, "sex_encoder.pkl")
+        view_encoder_path = os.path.join(DATA_DIRECTORY_PATH, "view_encoder.pkl")
+        age_scaler_path = os.path.join(DATA_DIRECTORY_PATH, "age_scaler.pkl")
+        if os.path.exists(sex_encoder_path):
+            with open(sex_encoder_path, 'rb') as f:
+                sex_enc = pickle.load(f)
+        else:
+            sex_enc = None
+        if os.path.exists(view_encoder_path):
+            with open(view_encoder_path, 'rb') as f:
+                view_enc = pickle.load(f)
+        else:
+            view_enc = None
+        if os.path.exists(age_scaler_path):
+            with open(age_scaler_path, 'rb') as f:
+                age_scaler = pickle.load(f)
+        else:
+            age_scaler = None
     else:
         print("\n=== Extracting HOG Features for Training Data ===")
         X_train_feat = get_hog_feature_matrix(images_folder_path, pd.DataFrame(train[0]), img_size, batch_size=batch_size)
@@ -492,8 +511,28 @@ if __name__ == "__main__":
         print("\n=== Standardizing Features ===")
         X_train_std, X_test_std, _, feature_scaler = standardize_pca_features(X_train_feat, X_test_feat)
         print(f"Features standardized (mean≈0, std≈1)")
-        X_train_encoded = encode_scale_input_features(pd.DataFrame(train[0]), X_train_std)
-        X_test_encoded = encode_scale_input_features(pd.DataFrame(test[0]), X_test_std)
+        # Fit encoders on training data
+        train_df = pd.DataFrame(train[0])
+        age_scaler = StandardScaler().fit(train_df[['Patient Age']].values)
+        sex_enc = OneHotEncoder(sparse_output=False, handle_unknown='ignore').fit(train_df[['Patient Sex']])
+        view_enc = OneHotEncoder(sparse_output=False, handle_unknown='ignore').fit(train_df[['View Position']])
+        def ensure_dense(arr):
+            dense = arr.toarray() if hasattr(arr, 'toarray') else arr
+            return dense.astype(np.float32)
+
+        X_train_encoded = np.hstack([
+            X_train_std,
+            age_scaler.transform(train_df[['Patient Age']].values),
+            ensure_dense(sex_enc.transform(train_df[['Patient Sex']])),
+            ensure_dense(view_enc.transform(train_df[['View Position']]))
+        ])
+        test_df = pd.DataFrame(test[0])
+        X_test_encoded = np.hstack([
+            X_test_std,
+            age_scaler.transform(test_df[['Patient Age']].values),
+            ensure_dense(sex_enc.transform(test_df[['Patient Sex']])),
+            ensure_dense(view_enc.transform(test_df[['View Position']]))
+        ])
         print(f"\n=== Saving Processed Data ===")
         np.savez_compressed(processed_data_path, 
                             X_train_encoded=X_train_encoded,
@@ -502,6 +541,13 @@ if __name__ == "__main__":
         print(f"✓ Saving feature scaler to {scaler_path}")
         with open(scaler_path, 'wb') as f:
             pickle.dump(feature_scaler, f)
+        # Save encoders
+        with open(os.path.join(DATA_DIRECTORY_PATH, "sex_encoder.pkl"), "wb") as f:
+            pickle.dump(sex_enc, f)
+        with open(os.path.join(DATA_DIRECTORY_PATH, "view_encoder.pkl"), "wb") as f:
+            pickle.dump(view_enc, f)
+        with open(os.path.join(DATA_DIRECTORY_PATH, "age_scaler.pkl"), "wb") as f:
+            pickle.dump(age_scaler, f)
     print("\n" + "="*60)
     print("STAGE 1: BINARY CLASSIFICATION (Finding vs No Finding)")
     print("="*60)

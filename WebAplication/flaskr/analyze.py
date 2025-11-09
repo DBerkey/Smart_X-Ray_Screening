@@ -16,6 +16,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from Preprocessing.preprocessing import preprocess_xray
+from Model.predict_with_models import predict
 
 from flask import (
     Blueprint, current_app, request, redirect, url_for, session, abort, send_file
@@ -252,7 +253,36 @@ def analyze_upload():
         pass
 
     # Run your Interfaces pipeline
-    _try_run_preprocessing_pipeline(saved_in_input)
+    preproc_img_path = _try_run_preprocessing_pipeline(saved_in_input)
+
+    # ML model prediction
+    # --- CONFIG ---
+    MODEL_DIR = os.path.join(os.path.dirname(__file__), '../../Model')
+    TRAINED_MODELS_DIR = os.path.join(MODEL_DIR, 'trained_models')
+    SCALER_PATH = os.path.join(TRAINED_MODELS_DIR, 'feature_scaler.pkl')
+    stage1_model_path = os.path.join(TRAINED_MODELS_DIR, 'svm_stage1_binary.pkl')
+    stage2_model_paths = {
+        "Atelectasis": os.path.join(TRAINED_MODELS_DIR, 'svm_stage2_Atelectasis.pkl'),
+        "Cardiomegaly": os.path.join(TRAINED_MODELS_DIR, 'svm_stage2_Cardiomegaly.pkl'),
+        "Consolidation": os.path.join(TRAINED_MODELS_DIR, 'svm_stage2_Consolidation.pkl'),
+        "Edema": os.path.join(TRAINED_MODELS_DIR, 'svm_stage2_Edema.pkl'),
+        "Effusion": os.path.join(TRAINED_MODELS_DIR, 'svm_stage2_Effusion.pkl'),
+        "Emphysema": os.path.join(TRAINED_MODELS_DIR, 'svm_stage2_Emphysema.pkl'),
+        "Fibrosis": os.path.join(TRAINED_MODELS_DIR, 'svm_stage2_Fibrosis.pkl'),
+        "Hernia": os.path.join(TRAINED_MODELS_DIR, 'svm_stage2_Hernia.pkl'),
+        "Infiltration": os.path.join(TRAINED_MODELS_DIR, 'svm_stage2_Infiltration.pkl'),
+        "Mass": os.path.join(TRAINED_MODELS_DIR, 'svm_stage2_Mass.pkl'),
+        "Nodule": os.path.join(TRAINED_MODELS_DIR, 'svm_stage2_Nodule.pkl'),
+        "Pleural_Thickening": os.path.join(TRAINED_MODELS_DIR, 'svm_stage2_Pleural_Thickening.pkl'),
+        "Pneumonia": os.path.join(TRAINED_MODELS_DIR, 'svm_stage2_Pneumonia.pkl'),
+        "Pneumothorax": os.path.join(TRAINED_MODELS_DIR, 'svm_stage2_Pneumothorax.pkl'),
+    }
+
+    # Predict using the ML models
+    finding_pred, stage2_results = predict(
+        str(preproc_img_path), age, sex, view,
+        stage1_model_path, stage2_model_paths, scaler_path=SCALER_PATH
+    )
 
     # Read Interfaces outputs
     _, _, preproc_dir, processed_dir = _interfaces_paths()
@@ -266,15 +296,55 @@ def analyze_upload():
     else:
         area, image_name = "Input", saved_in_input.name
 
+    # Convert numpy types to native Python types for JSON serialization
+    def to_py(val):
+        if hasattr(val, 'item'):
+            return val.item()
+        return int(val) if isinstance(val, (np.integer,)) else float(val) if isinstance(val, (np.floating,)) else val
+
+    py_finding_pred = to_py(finding_pred)
+    py_stage2_results = {k: to_py(v) for k, v in stage2_results.items()} if stage2_results else None
+
+    # Determine result stage
+    if py_finding_pred == 0:
+        result_stage = 1  # No findings
+    elif py_finding_pred == 1 and py_stage2_results:
+        if all(v == 0 for v in py_stage2_results.values()):
+            result_stage = 2  # Findings, but unknown which
+        else:
+            result_stage = 3  # Findings, likely this
+    else:
+        result_stage = 2  # Default to stage 2 if ambiguous
+
+    # If stage 3, write detected findings to processed_data.json for display
+    if result_stage == 3 and py_stage2_results:
+        findings_list = []
+        for label, value in py_stage2_results.items():
+            if value == 1:
+                findings_list.append({"label": label, "score": 1.0, "bbox": None})
+        _, _, preproc_dir, processed_dir = _interfaces_paths()
+        results_json = {
+            "findings": findings_list,
+            "overall_conf": None
+        }
+        (processed_dir / "processed_data.json").write_text(
+            json.dumps(results_json, ensure_ascii=False, indent=2),
+            encoding="utf-8"
+        )
+        # Update findings for payload
+        findings = findings_list
     # Build session payload & redirect
     payload = {
-    "image_area": area,
-    "image_name": image_name,
-    "input_image_name": saved_in_input.name,
-    "num_findings": len(findings),
-    "findings": findings,
-    "patient": {"sex": sex, "age": age, "view": view} if (sex or age or view is not None) else None,
-    "generated_at": _now_utc_z(),
+        "image_area": area,
+        "image_name": image_name,
+        "input_image_name": saved_in_input.name,
+        "num_findings": len(findings),
+        "findings": findings,
+        "patient": {"sex": sex, "age": age, "view": view} if (sex or age or view is not None) else None,
+        "generated_at": _now_utc_z(),
+        "ml_finding_pred": py_finding_pred,
+        "ml_stage2_results": py_stage2_results,
+        "result_stage": result_stage,
     }
     session["latest_result"] = payload
     return redirect(url_for("results.show_results"))
@@ -301,7 +371,6 @@ def serve_interfaces_image(area, filename):
 
     if not path.exists() or not path.is_file():
         abort(404)
-
     data = path.read_bytes()
 
     # Only delete PreProcess preview images after serving

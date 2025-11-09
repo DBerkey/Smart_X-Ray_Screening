@@ -29,6 +29,7 @@ def show_results():
         patient=payload.get("patient"),
         generated_at=payload.get("generated_at"),
         overall_conf=payload.get("overall_conf"),
+        result_stage=payload.get("result_stage"),
     )
 
 @bp.route("/results/export-pdf")
@@ -101,7 +102,7 @@ def export_pdf():
         c.drawString(margin, y, "(No image available)")
         y -= 18
 
-    # Findings (per-finding confidence)
+    # Findings (only class name)
     c.setFont("Helvetica-Bold", 12)
     c.drawString(margin, y, "Detected Findings")
     y -= 14
@@ -113,12 +114,7 @@ def export_pdf():
     else:
         for i, f in enumerate(findings, 1):
             label = f.get("label", "—")
-            score = f.get("score")
-            score_txt = f"{round(float(score)*100,1)}%" if score is not None else "—"
-            bbox = f.get("bbox")
-            line = f"{i}. {label} — {score_txt}"
-            if bbox:
-                line += f"   bbox: {bbox}"
+            line = f"{i}. {label}"
             # New page if needed
             if y < margin + 12:
                 c.showPage(); y = page_h - margin; c.setFont("Helvetica", 10)
