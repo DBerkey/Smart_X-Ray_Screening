@@ -61,7 +61,7 @@ def _save_direct_to_interfaces_input(upload_file) -> Path:
     upload_file.save(saved_path)
     return saved_path
 
-def _try_run_interfaces_pipeline(input_image_path: Path) -> Path:
+def _try_run_preprocessing_pipeline(input_image_path: Path) -> Path:
     """
     Run the preprocessing pipeline on the uploaded image.
     Args:
@@ -252,7 +252,7 @@ def analyze_upload():
         pass
 
     # Run your Interfaces pipeline
-    _try_run_interfaces_pipeline(saved_in_input)
+    _try_run_preprocessing_pipeline(saved_in_input)
 
     # Read Interfaces outputs
     _, _, preproc_dir, processed_dir = _interfaces_paths()
