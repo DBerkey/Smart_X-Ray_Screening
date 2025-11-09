@@ -1,12 +1,10 @@
 {
-    "Cardiomegaly": {
-        "Sureness": null,
-        "Box_x": null,
-        "Box_y": null
-    },
-    "Emphysema": {
-        "Sureness": null,
-        "Box_x": null,
-        "Box_y": null
+  "findings": [
+    {
+      "label": "Atelectasis",
+      "score": 1.0,
+      "bbox": null
     }
+  ],
+  "overall_conf": null
 }
