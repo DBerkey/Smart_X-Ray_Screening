@@ -406,6 +406,36 @@ def fit_lda_model(X_train, Y_train, n_components=10):
     lda.fit(X_train, Y_train)
     return lda
 
+def train_disease_svm(args):
+    disease, data_dir, X_train_stage2, y_train_stage2, X_test_stage2, y_test_stage2 = args
+    model_path = os.path.join(data_dir, f"svm_stage2_{disease}.pkl")
+    print(f"\nTraining binary SVM for: {disease}")
+    y_train_binary = y_train_stage2.apply(lambda labels: int(disease in labels.split('|')))
+    y_test_binary = y_test_stage2.apply(lambda labels: int(disease in labels.split('|')))
+    smote = SMOTE(random_state=42)
+    try:
+        resampled = smote.fit_resample(X_train_stage2, y_train_binary)
+        if isinstance(resampled, tuple) and len(resampled) == 2:
+            X_train_balanced, y_train_balanced = resampled
+        else:
+            X_train_balanced, y_train_balanced = resampled[:2]
+    except ValueError as e:
+        print(f"  Skipping {disease}: SMOTE error: {e}")
+        return (disease, None, {'f1': 0.0, 'accuracy': 0.0})
+    svm_config = {'C': 1.0, 'kernel': 'rbf', 'gamma': 'scale', 'probability': False}
+    if len(X_train_balanced) < 2:
+        print(f"  Skipping {disease}: not enough samples for SVM.")
+        return (disease, None, {'f1': 0.0, 'accuracy': 0.0})
+    svm_model = train_svm_model(X_train_balanced, y_train_balanced, svm_config)
+    y_pred = svm_model.predict(X_test_stage2)
+    f1 = f1_score(y_test_binary, y_pred, zero_division=0)
+    acc = accuracy_score(y_test_binary, y_pred)
+    print(f"  F1 Score: {f1:.4f}, Accuracy: {acc:.4f}")
+    with open(model_path, 'wb') as f:
+        pickle.dump(svm_model, f)
+    print(f"  ✓ Saved model to {model_path}")
+    return (disease, svm_model, {'f1': f1, 'accuracy': acc})
+
 if __name__ == "__main__":
     # ===== CONFIGURATION =====
     DATA_DIRECTORY_PATH = "C:/Users/berke/OneDrive/Documenten/school/UiA/Smart_X-Ray_Screening_img-data"
@@ -533,45 +563,21 @@ if __name__ == "__main__":
     stage2_models = {}
     stage2_metrics = {}
 
-    for disease in disease_list:
-        model_path = os.path.join(DATA_DIRECTORY_PATH, f"svm_stage2_{disease}.pkl")
-        if TRAIN_STAGE2:
-            print(f"\nTraining binary SVM for: {disease}")
-            # Create binary labels: 1 if disease present, 0 otherwise
-            y_train_binary = y_train_stage2.apply(lambda labels: int(disease in labels.split('|')))
-            y_test_binary = y_test_stage2.apply(lambda labels: int(disease in labels.split('|')))
-
-            # Use SMOTE to balance the training set
-            smote = SMOTE(random_state=42)
-            try:
-                X_train_balanced, y_train_balanced = smote.fit_resample(X_train_stage2, y_train_binary)
-            except ValueError as e:
-                print(f"  Skipping {disease}: SMOTE error: {e}")
-                continue
-
-            # SVM config for per-disease classifier
-            svm_config = {'C': 1.0, 'kernel': 'rbf', 'gamma': 'scale', 'probability': False}
-            if len(X_train_balanced) < 2:
-                print(f"  Skipping {disease}: not enough samples for SVM.")
-                continue
-            svm_model = train_svm_model(
-                X_train_balanced,
-                y_train_balanced,
-                svm_config
-            )
-
-            # Evaluate model
-            y_pred = svm_model.predict(X_test_stage2)
-            f1 = f1_score(y_test_binary, y_pred, zero_division=0)
-            acc = accuracy_score(y_test_binary, y_pred)
-            print(f"  F1 Score: {f1:.4f}, Accuracy: {acc:.4f}")
-            stage2_models[disease] = svm_model
-            stage2_metrics[disease] = {'f1': f1, 'accuracy': acc}
-
-            with open(model_path, 'wb') as f:
-                pickle.dump(svm_model, f)
-            print(f"  ✓ Saved model to {model_path}")
-        else:
+    if TRAIN_STAGE2:
+        print("\nParallel training of per-disease SVMs...")
+        args_list = [
+            (disease, DATA_DIRECTORY_PATH, X_train_stage2, y_train_stage2, X_test_stage2, y_test_stage2)
+            for disease in disease_list
+        ]
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            results = list(executor.map(train_disease_svm, args_list))
+        for disease, model, metrics in results:
+            if model is not None:
+                stage2_models[disease] = model
+            stage2_metrics[disease] = metrics
+    else:
+        for disease in disease_list:
+            model_path = os.path.join(DATA_DIRECTORY_PATH, f"svm_stage2_{disease}.pkl")
             print(f"Loading existing Stage 2 model for {disease} from {model_path}")
             with open(model_path, 'rb') as f:
                 knn_model = pickle.load(f)
