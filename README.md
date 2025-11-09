@@ -152,17 +152,44 @@ python test_preprocessing.py
 - Console summary of training and evaluation metrics
 
 # Webaplication
+
 ### Prerequisites
 1. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
 
-2. Prepare your data and directories:
-   - to come
+2. Prepare models and encoders:
+   - Place your trained Stage 1 and Stage 2 model files in the `Model/trained_models/` directory.
+   - Ensure the following files are present in `Model/trained_models/`:
+     - Stage 1 binary classifier (e.g., `svm_stage1_binary.pkl`)
+     - Stage 2 condition classifiers (e.g., `svm_stage2_<Condition>.pkl`)
+     - Feature scaler (`feature_scaler.pkl`)
+     - Age scaler (`age_scaler.pkl`)
+     - Sex encoder (`sex_encoder.pkl`)
+     - View encoder (`view_encoder.pkl`)
+     - Stage 2 label encoders (if used)
 
-### Run Flask
-```bash
-$env:FLASK_APP = "WebAplication/flaskr"
-python -m flask run
-```
+### Running the Flask Web Server
+1. Set the Flask app environment variable (Windows PowerShell):
+   ```powershell
+   $env:FLASK_APP = "WebAplication/flaskr"
+   python -m flask run
+   ```
+
+2. Open your browser and go to:
+   [http://127.0.0.1:5000](http://127.0.0.1:5000)
+
+### Usage
+- Upload a chest X-ray image and enter patient details (sex, age, view).
+- The app will preprocess the image, run ML predictions, and display results in three stages:
+  1. **No findings**: No abnormality detected.
+  2. **Findings detected, but unknown which**: Abnormality detected, but no specific condition identified.
+  3. **Findings detected, likely this**: One or more conditions identified (listed in results).
+- You can export results as a PDF or print directly from the web interface.
+
+### Troubleshooting
+- If you see errors about missing models or encoders, check that all required `.pkl` files are present in `Model/trained_models/`.
+- For version compatibility, ensure your Python and package versions match those in `requirements.txt`.
+
+---
