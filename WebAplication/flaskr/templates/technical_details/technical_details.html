@@ -5,28 +5,41 @@
         This section provides detailed technical information about the Smart X-Ray Screening application, including the underlying algorithms, data processing techniques, and system architecture.
     </p>
 
-    <h2>System Architecture</h2>
+    <h2>System Requirements</h2>
     <p style="text-align: justify;">
-        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
-        magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
-        consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-        Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum
-    </p>
+        The X-ray analysis application requires a workstation capable of handling large image datasets and memory-intensive preprocessing. <br>
+        The recommended configuration includes:
+        <ul> 
+            <li>200 GB of available storage for datasets and intermediate outputs, </li>
+            <li> 32 GB of DDR5-6000 RAM to support real-time image processing, </li>
+            <li>an AMD Ryzen 7 7700X processor to provide the necessary computational throughput.</li>  
+        </ul> 
+        This setup ensures smooth operation of the full preprocessing and analysis pipeline, but it may be possible to run the application on less powerful hardware with reduced performance.   
+    </p>   
 
     <h2>Data Processing Techniques</h2>
     <p style="text-align: justify;">
-        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
-        magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
-        consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-        Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+     The uploaded X-Ray images undergo several preprocessing steps to ensure optimal analysis by the machine learning models: <br>
+     <ul>
+     <li>the first step is to convert the image to the HSV color space, which helps in enhancing the contrast and making certain features more distinguishable. </li>
+     <li>next, Contrast Limited Adaptive Histogram Equalization (CLAHE) is then applied specifically to the V (value) channel to enhance local contrast without amplifying noise. </li>
+     <li>after enhancement, the image is converted back to grayscale and normalized so all inputs share the same dimensions. </li>
+     <li>once normalized, Canny edge detection is performed to extract strong structural information from the image. </li>
+     </ul>
+    These preprocessing steps are crucial for improving the quality of the input data, which in turn enhances the performance of the machine learning algorithms used for detecting abnormalities in the X-Ray images.
     </p>
 
     <h2>Algorithms Used</h2>
     <p style="text-align: justify;">
-        Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
-        magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
-        consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-        Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+    This model is designed for automated X-ray image classification using a two-stage approach. <br>
+    <ul>
+    <li>In the first stage, a binary classifier (an SVM) distinguishes between images with findings and those labeled as "No Finding." <br>
+         The input features for this stage are extracted from preprocessed X-ray images using Histogram of Oriented Gradients (HOG), combined with patient metadata such as age, sex, and view position. The data is split into training, testing, and evaluation sets, and features are standardized to improve model performance. <br>
+          The binary classifier is trained to maximize accuracy and F1 score, ensuring reliable detection of abnormal cases. In the testing environment, this first phase achieved an accuracy of 69.13%, correctly identifying whether an X-ray showed any abnormal findings. </li>
+    <li>In the second stage, the model focuses on multi-label classification for images identified as having findings. <br> 
+        For each specific disease (e.g., Cardiomegaly, Pneumonia), a separate binary SVM is trained to predict its presence, with SMOTE used to address class imbalance. The per-disease models showed varied performance, with F1 scores ranging from 0.00 (Pneumonia) to 0.49 (Infiltration), and accuracy generally above 75%. <br> 
+        The final two-stage system combines predictions from both stages: the first stage filters out normal cases, while the second stage assigns one or more disease labels to abnormal cases. On the test set, the overall exact match accuracy for the complete pipeline was 3.66%, with a hamming loss of 0.0908, macro F1 score of 0.1473, micro F1 score of 0.1734, and Jaccard score of 0.0746. These results highlight the challenge of multi-label medical image classification, but also demonstrate the model’s ability to provide detailed, disease-specific predictions.</li>
+    </ul>
     </p>
 
     <div class="d-flex justify-content-center align-items-center mt-4">    
