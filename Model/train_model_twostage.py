@@ -13,19 +13,16 @@ from skimage.feature import hog
 from sklearn.metrics import accuracy_score, hamming_loss, f1_score, jaccard_score
 from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.manifold import TSNE
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from imblearn.over_sampling import SMOTE
 import concurrent.futures
-import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import numpy as np
 from PIL import Image
 import gc
 import pickle 
-import cv2
 
 def split_data_train_test_eval(x, y, test_size=0.195, eval_size=0.005): 
     """
@@ -245,6 +242,9 @@ def train_knn_model(X_train, Y_train, n_neighbors=5, metric='manhattan', weights
     Returns:
         Trained KNN model.
     """
+    # Ensure weights is either 'uniform', 'distance', or None
+    if weights not in ['uniform', 'distance', None]:
+        weights = 'uniform'
     knn = KNeighborsClassifier(n_neighbors=n_neighbors, metric=metric, weights=weights)
     knn.fit(X_train, Y_train)
     return knn
@@ -275,16 +275,25 @@ def evaluate_binary_model(model, X_test, Y_test, name="Binary Model"):
     print(f"\n{name} Evaluation:")
     print(f"  Accuracy: {accuracy * 100:.2f}%")
     if isinstance(precision, (np.ndarray, list, tuple)) and len(precision) == 2:
+        # Print metrics for Class 0 (No Finding)
         print(f"\n  Class 0 (No Finding):")
         print(f"    Precision: {precision[0]:.4f}")
-        print(f"    Recall: {recall[0]:.4f}")
-        print(f"    F1-Score: {f1[0]:.4f}")
-        print(f"    Support: {support[0]}")
+        recall0 = recall[0] if isinstance(recall, (np.ndarray, list, tuple)) and len(recall) > 0 else recall
+        print(f"    Recall: {recall0:.4f}")
+        f1_0 = f1[0] if isinstance(f1, (np.ndarray, list, tuple)) and len(f1) > 0 else f1
+        print(f"    F1-Score: {f1_0:.4f}")
+        support0 = support[0] if support is not None and hasattr(support, '__getitem__') and len(support) > 0 else support
+        print(f"    Support: {support0}")
+
+        # Print metrics for Class 1 (Has Finding)
         print(f"\n  Class 1 (Has Finding):")
         print(f"    Precision: {precision[1]:.4f}")
-        print(f"    Recall: {recall[1]:.4f}")
-        print(f"    F1-Score: {f1[1]:.4f}")
-        print(f"    Support: {support[1]}")
+        recall1 = recall[1] if isinstance(recall, (np.ndarray, list, tuple)) and len(recall) > 1 else recall
+        print(f"    Recall: {recall1:.4f}")
+        f1_1 = f1[1] if isinstance(f1, (np.ndarray, list, tuple)) and len(f1) > 1 else f1
+        print(f"    F1-Score: {f1_1:.4f}")
+        support1 = support[1] if support is not None and hasattr(support, '__getitem__') and len(support) > 1 else support
+        print(f"    Support: {support1}")
     else:
         print(f"  Precision: {precision:.4f}")
         print(f"  Recall: {recall:.4f}")
@@ -438,7 +447,7 @@ def train_disease_svm(args):
 
 if __name__ == "__main__":
     # ===== CONFIGURATION =====
-    DATA_DIRECTORY_PATH = "C:/Users/berke/OneDrive/Documenten/school/UiA/Smart_X-Ray_Screening_img-data"
+    DATA_DIRECTORY_PATH = "path/to/data_directory"  # Update this path accordingly
     images_folder_path = DATA_DIRECTORY_PATH + "/images_M-preprocessed"
     images_metadata_path = DATA_DIRECTORY_PATH + "/Data_Entry_2017_v2020.csv"
     
@@ -446,8 +455,7 @@ if __name__ == "__main__":
     img_size = (256, 256)      # resolution of the images (width, height)
     n_pca_components = 1000     
     batch_size = 1000           # Must be >= n_pca_components for IncrementalPCA 
-    
-    LOAD_EXISTING_PCA = True    # Set to True to load existing PCA or LDA model
+
     LOAD_EXISTING_DATA = True   # Set to True to skip image loading and PCA or LDA transformation
 
     batch_size = 100
