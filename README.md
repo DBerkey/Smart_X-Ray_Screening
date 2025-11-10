@@ -151,7 +151,7 @@ python test_preprocessing.py
 - Preprocessed feature files (`.npz`)
 - Console summary of training and evaluation metrics
 
-# Webaplication
+# Webapplication
 
 ### Prerequisites
 1. Install dependencies:
@@ -191,5 +191,16 @@ python test_preprocessing.py
 ### Troubleshooting
 - If you see errors about missing models or encoders, check that all required `.pkl` files are present in `Model/trained_models/`.
 - For version compatibility, ensure your Python and package versions match those in `requirements.txt`.
+
+
+# UML Use Case Diagrams and software architecture
+The UML use case diagrams for the project are located in the `UML/` directory. They illustrate the main functionalities and interactions within the system, including data analysis, prediction, and preprocessing components.
+
+Generated with [PlantUML](https://plantuml.com/). The generated diagrams are stored as SVG files in the `UML/out` folder.
+
+
+---
+### AI Use Disclaimer
+This project has utilized AI tools in code debugging and documentation assistance. All AI-generated content has been reviewed and validated by the development team to ensure accuracy and relevance.
 
 ---
