@@ -1,0 +1,87 @@
+@startuml Data Analysis Use Cases
+!pragma layout smetana
+skinparam backgroundColor #FEFEFE
+skinparam linetype ortho
+
+title Smart X-Ray Screening - Data Analysis Use Cases
+
+' ============ ACTORS ============
+actor "Data Scientist/\nML Engineer" as DataScientist #LightGreen
+
+' ============ SYSTEM BOUNDARY ============
+rectangle "Data Analysis System" {
+  
+  usecase "Analyze Patient Demographics" as UC1
+  usecase "Analyze Disease Patterns" as UC2
+  usecase "Analyze Bounding Box Data" as UC3
+  usecase "Load Dataset CSV" as UC4
+  usecase "Process Image Metadata" as UC5
+  usecase "Calculate Statistics" as UC6
+  usecase "Generate Visualizations" as UC7
+  usecase "Export Analysis Results" as UC8
+}
+
+' ============ RELATIONSHIPS ============
+
+DataScientist --> UC1
+DataScientist --> UC2
+DataScientist --> UC3
+
+' Analysis flow
+UC1 ..> UC4 : <<include>>
+UC2 ..> UC4 : <<include>>
+UC3 ..> UC4 : <<include>>
+
+UC1 ..> UC5 : <<include>>
+UC2 ..> UC5 : <<include>>
+
+UC1 ..> UC6 : <<include>>
+UC2 ..> UC6 : <<include>>
+UC3 ..> UC6 : <<include>>
+
+UC6 ..> UC7 : <<include>>
+UC7 ..> UC8 : <<extend>>
+
+' ============ NOTES ============
+note top of UC1
+  **Demographics Analysis:**
+  - Age distribution
+  - Gender patterns
+  - View position frequency
+end note
+
+note right of UC2
+  **Disease Analysis:**
+  - Disease co-occurrence
+  - Disease prevalence
+  - Correlation patterns
+end note
+
+note top of UC3
+  **Bounding Box Analysis:**
+  - Spatial distribution
+  - Box size statistics
+  - Location patterns
+end note
+
+note bottom of UC7
+  **Visualization Types:**
+  - Bar plots
+  - Scatter plots
+  - Histograms
+  - Heatmaps
+  - Distribution charts
+end note
+
+legend bottom
+  |= Relationship |= Description |
+  | ──> | Actor initiates |
+  | ..> <<include>> | Required step |
+  | ..> <<extend>> | Optional step |
+  
+  **Data Sources:**
+  - Data_Entry_2017_v2020.csv
+  - BBox_List_2017.csv
+endlegend
+
+@enduml

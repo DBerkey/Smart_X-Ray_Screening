@@ -1,0 +1,57 @@
+@startuml Image Preprocessing Use Cases
+!pragma layout smetana
+skinparam backgroundColor #FEFEFE
+skinparam linetype ortho
+
+title Smart X-Ray Screening - Image Preprocessing Use Cases
+
+' ============ ACTORS ============
+actor "Data Scientist/\nML Engineer" as DataScientist #LightGreen
+
+' ============ SYSTEM BOUNDARY ============
+rectangle "Image Preprocessing Pipeline" {
+  
+  usecase "Batch Process Images" as UC1
+  usecase "Load Raw X-Ray Image" as UC2
+  usecase "Convert to HSV" as UC3
+  usecase "Apply CLAHE Enhancement" as UC4
+  usecase "Apply Median Blur" as UC5
+  usecase "Resize Image" as UC6
+  usecase "Detect Edges (Optional)" as UC7
+  usecase "Save Preprocessed Image" as UC8
+}
+
+' ============ RELATIONSHIPS ============
+
+DataScientist --> UC1
+
+' Processing pipeline
+UC1 ..> UC2 : <<include>>
+UC2 ..> UC3 : <<include>>
+UC3 ..> UC4 : <<include>>
+UC4 ..> UC5 : <<include>>
+UC5 ..> UC6 : <<include>>
+UC6 ..> UC7 : <<extend>>
+UC6 ..> UC8 : <<include>>
+UC7 ..> UC8 : <<extend>>
+
+' ============ NOTES ============
+note right of UC6
+  **Resize Parameters:**
+  - Target size: 256x256
+end note
+
+note bottom of UC1
+  Processes all images in batch
+  using multithreading
+  Output: soft_tissue_<image_index>
+end note
+
+legend bottom
+  |= Relationship |= Description |
+  | ──> | Actor initiates |
+  | ..> <<include>> | Required step |
+  | ..> <<extend>> | Optional step |
+endlegend
+
+@enduml

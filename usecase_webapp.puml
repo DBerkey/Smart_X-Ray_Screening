@@ -1,0 +1,81 @@
+@startuml Web Application Use Cases
+!pragma layout smetana
+skinparam backgroundColor #FEFEFE
+skinparam linetype ortho
+
+title Smart X-Ray Screening - Web Application Use Cases
+
+' ============ ACTORS ============
+actor "Radiologist/\nMedical Professional" as Doctor #LightBlue
+
+' ============ SYSTEM BOUNDARY ============
+rectangle "Web Application" {
+  
+  ' Main use cases
+  usecase "Upload X-Ray Image" as UC1
+  usecase "Enter Patient Data" as UC2
+  usecase "Submit Form" as UC12
+  usecase "Validate Input Data" as UC13
+  usecase "View Analysis Results" as UC3
+  usecase "Export Results as PDF" as UC4
+  usecase "Print Results" as UC5
+  usecase "View Technical Details" as UC6
+  usecase "Access User Guide" as UC7
+  
+  ' Backend processing (included)
+  usecase "Preprocess Image" as UC8
+  usecase "Extract Features" as UC9
+  usecase "Run ML Prediction" as UC10
+  usecase "Generate Results" as UC11
+}
+
+' ============ RELATIONSHIPS ============
+
+' Doctor interactions
+Doctor --> UC12
+Doctor --> UC1
+Doctor --> UC2
+Doctor --> UC3
+Doctor --> UC6
+Doctor --> UC7
+
+' Submit flow with validation
+UC1 ..> UC12 : <<include>>
+UC2 ..> UC12 : <<include>>
+UC12 ..> UC13 : <<include>>
+
+' Upload and analysis flow
+UC13 ..> UC8 : <<include>>\n[if valid]
+UC8 ..> UC9 : <<include>>
+UC13 ..> UC9 : <<include>>\n[if valid]
+UC9 ..> UC10 : <<include>>
+UC10 ..> UC11 : <<include>>
+UC11 ..> UC3 : <<include>>
+
+' Export options from results
+UC3 ..> UC4 : <<extend>>
+UC3 ..> UC5 : <<extend>>
+
+' ============ NOTES ============
+note top of UC8
+  Preprocessing:
+  - CLAHE enhancement
+  - Median blur
+  - Resize to 256x256
+  - Edge detection
+end note
+
+note right of UC10
+  Two-stage ML prediction:
+  Stage 1: Finding/No Finding
+  Stage 2: Identify conditions
+end note
+
+legend bottom
+  |= Relationship |= Description |
+  | ──> | Actor uses Use Case |
+  | ..> <<include>> | Required step |
+  | ..> <<extend>> | Optional feature |
+endlegend
+
+@enduml

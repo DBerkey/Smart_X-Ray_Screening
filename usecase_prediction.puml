@@ -1,0 +1,76 @@
+@startuml ML Prediction Use Cases
+!pragma layout smetana
+skinparam backgroundColor #FEFEFE
+skinparam linetype ortho
+
+title Smart X-Ray Screening - ML Prediction Use Cases
+
+' ============ ACTORS ============
+actor "System" as System #Lavender
+
+' ============ SYSTEM BOUNDARY ============
+rectangle "ML Prediction System" {
+  
+  usecase "Receive Input Data" as UC1
+  usecase "Extract HOG Features" as UC2
+  usecase "Encode Patient Metadata" as UC3
+  usecase "Combine Features" as UC4
+  usecase "Run Stage 1 SVM\n(Finding/No Finding)" as UC5
+  usecase "Run Stage 2 SVMs\n(14 Disease Models)" as UC6
+  usecase "Generate Prediction Results" as UC7
+}
+
+' ============ RELATIONSHIPS ============
+
+System --> UC1
+
+' Prediction flow
+UC1 ..> UC2 : <<include>>
+UC1 ..> UC3 : <<include>>
+UC2 ..> UC4 : <<include>>
+UC3 ..> UC4 : <<include>>
+UC4 ..> UC5 : <<include>>
+UC5 ..> UC6 : <<extend>>\n[if finding=1]
+UC5 ..> UC7 : <<include>>
+UC6 ..> UC7 : <<include>>
+
+' ============ NOTES ============
+note right of UC2
+  **HOG Features:**
+  - Image size: 256x256
+  - Pixels per cell: 32x32
+  - Cells per block: 4x4
+  - Orientations: 9
+end note
+
+note top of UC3
+  **Metadata:**
+  - Patient Age (scaled)
+  - Patient Sex (one-hot)
+  - View Position (one-hot)
+end note
+
+note bottom of UC5
+  **Stage 1 Result:**
+  0 = No Finding
+  1 = Has Finding
+end note
+
+note bottom of UC6
+  **14 Conditions:**
+  Atelectasis, Cardiomegaly,
+  Consolidation, Edema, Effusion,
+  Emphysema, Fibrosis, Hernia,
+  Infiltration, Mass, Nodule,
+  Pleural Thickening, Pneumonia,
+  Pneumothorax
+end note
+
+legend bottom
+  |= Relationship |= Description |
+  | ──> | Initiates process |
+  | ..> <<include>> | Required step |
+  | ..> <<extend>> | Conditional step |
+endlegend
+
+@enduml

@@ -1,0 +1,184 @@
+@startuml Smart X-Ray Screening System Flowchart
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontSize 11
+skinparam ArrowColor #2C3E50
+skinparam ActorBackgroundColor #3498DB
+skinparam ActorBorderColor #2C3E50
+
+title Smart X-Ray Screening System - Complete Workflow
+
+|#LightBlue|User|
+start
+:User opens Web Application;
+
+|#LightGreen|Web Application (Flask)|
+:Display upload form
+(Home Page);
+
+|User|
+:Upload X-Ray Image;
+:Enter Patient Data
+- Sex
+- Age  
+- View Position;
+
+|Web Application (Flask)|
+:Receive upload request
+(analyze.py);
+
+:Validate uploaded file
+- Check file type
+- Verify image integrity;
+
+if (Valid image?) then (yes)
+  :Save to **Interfaces/Input/**
+  with timestamp;
+  
+  :Create patient_data.json
+  with metadata;
+else (no)
+  |User|
+  :Show error message;
+  stop
+endif
+
+|#FFC0CB|Preprocessing Module|
+:Load image from
+Interfaces/Input/;
+
+:Apply preprocessing pipeline
+(preprocessing.py);
+
+note right
+  **Preprocessing Steps:**
+  1. Convert to grayscale
+  2. Apply CLAHE enhancement
+  3. Median blur for denoising
+  4. Resize to 500x500
+  5. Edge detection (optional)
+end note
+
+:Extract HOG features
+- 256x256 resolution
+- 32x32 pixels per cell
+- 4x4 cells per block;
+
+:Save preprocessed image to
+**Interfaces/PreProcess/**;
+
+|#FFD700|ML Model - Stage 1|
+:Load trained models and encoders
+- Feature scaler
+- Age scaler
+- Sex encoder
+- View encoder;
+
+:Encode & scale input features
+- HOG features
+- Patient age
+- Patient sex
+- View position;
+
+:Run Stage 1 Binary Classifier
+(Finding / No Finding);
+
+if (Finding Detected?) then (yes)
+  |ML Model - Stage 2|
+  :Run Stage 2 Multi-label Classifiers;
+  
+  note right
+    **14 Condition Classifiers:**
+    - Atelectasis
+    - Cardiomegaly
+    - Consolidation
+    - Edema
+    - Effusion
+    - Emphysema
+    - Fibrosis
+    - Hernia
+    - Infiltration
+    - Mass
+    - Nodule
+    - Pleural Thickening
+    - Pneumonia
+    - Pneumothorax
+  end note
+  
+  :Predict each condition
+  (0 or 1 for each);
+  
+  if (Any condition = 1?) then (yes)
+    :Result Stage = 3
+    (Findings detected, likely this);
+    
+    :Create findings list
+    with detected conditions;
+  else (no)
+    :Result Stage = 2
+    (Findings detected, unknown which);
+  endif
+  
+else (no)
+  :Result Stage = 1
+  (No findings);
+endif
+
+|Web Application (Flask)|
+:Store results to
+**Interfaces/Processed/**;
+
+:Save processed_data.json
+with findings & scores;
+
+:Store result in session
+- Image references
+- Patient data
+- ML predictions
+- Result stage;
+
+|User|
+:Redirect to Results Page
+(results.py);
+
+if (Result Stage?) then (1 - No Findings)
+  :Display: "No abnormality detected";
+  
+elseif (2 - Unknown Findings) then
+  :Display: "Abnormality detected,
+  but condition unknown";
+  
+else (3 - Specific Findings)
+  :Display: "Findings detected"
+  List detected conditions;
+endif
+
+:Show preprocessed image;
+
+:Provide export options
+- PDF export
+- Print;
+
+|User|
+if (Export/Print?) then (yes)
+  :Generate PDF or Print;
+else (no)
+  :Done;
+endif
+
+stop
+
+legend right
+  |= Component |= Directory |
+  | User Interface | WebApplication/flaskr/ |
+  | Preprocessing | Preprocessing/ |
+  | ML Models | Model/ |
+  | Data Storage | Interfaces/ |
+  
+  |= Data Flow |= Description |
+  | Input | Original uploaded images |
+  | PreProcess | Intermediate processed images |
+  | Processed | Final results with annotations |
+endlegend
+
+@enduml

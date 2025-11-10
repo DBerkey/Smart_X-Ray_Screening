@@ -1,0 +1,342 @@
+@startuml ML Model Training Process
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontSize 11
+skinparam ArrowColor #2C3E50
+
+title Smart X-Ray Screening - ML Model Training Process
+
+|#FFB6C1|Image Preprocessing|
+start
+
+:Load raw X-ray images
+from dataset;
+
+:Batch preprocess all images
+using preprocessing.py;
+
+note right
+  **Preprocessing Pipeline:**
+  1. Load grayscale image
+  2. Convert to HSV
+  3. Apply CLAHE enhancement
+  4. Convert back to grayscale
+  5. Apply median blur (kernel=5)
+  6. Resize to 256x256
+  
+  **Output:**
+  Saved as soft_tissue_<image_index>
+end note
+
+:Save preprocessed images
+to dedicated folder/;
+stop
+
+|#LightBlue|Data Preparation|
+start
+:Load metadata CSV
+(Data_Entry_2017_v2020.csv);
+
+:Filter images
+Match available preprocessed images;
+
+note right
+  **Input Data:**
+  - Image Index
+  - Patient Age
+  - Patient Sex
+  - View Position
+  - Finding Labels
+end note
+
+:Split data
+80% Train / 19.5% Test / 0.5% Eval;
+
+if (Load existing processed data?) then (yes)
+  :Load preprocessed features
+  and encoders from disk;
+else (no)
+  
+  |#FFD700|Feature Extraction|
+  :Process images in batches
+  (batch_size = 100);
+  
+  :For each image:
+  Load preprocessed image
+  (soft_tissue_<image_index>);
+  
+  :Extract HOG features
+  - Resize to 256x256
+  - 32x32 pixels per cell
+  - 4x4 cells per block
+  - 9 orientations;
+  
+  note right
+    **HOG Parameters:**
+    - Image size: 256x256
+    - Pixels per cell: 32x32
+    - Cells per block: 4x4
+    - Orientations: 9
+    - Parallel processing
+  end note
+  
+  :Standardize HOG features
+  (mean=0, std=1);
+  
+  |#98FB98|Metadata Encoding|
+  :Scale Patient Age
+  (StandardScaler);
+  
+  :One-hot encode Sex
+  (Male/Female);
+  
+  :One-hot encode View
+  (PA/AP);
+  
+  :Combine all features
+  [HOG + Age + Sex + View];
+  
+  :Save processed features
+  and encoders to disk;
+endif
+
+|#FFA07A|Label Preparation|
+:Create Stage 1 labels
+(Binary: Finding / No Finding);
+
+:Create Stage 2 labels
+(Multi-label for 14 conditions);
+
+note right
+  **14 Conditions:**
+  1. Atelectasis
+  2. Cardiomegaly
+  3. Consolidation
+  4. Edema
+  5. Effusion
+  6. Emphysema
+  7. Fibrosis
+  8. Hernia
+  9. Infiltration
+  10. Mass
+  11. Nodule
+  12. Pleural Thickening
+  13. Pneumonia
+  14. Pneumothorax
+end note
+
+|#FF6B6B|Stage 1 Training|
+if (Train Stage 1 model?) then (yes)
+  
+  :Prepare binary labels
+  0 = No Finding
+  1 = Has Finding;
+  
+  :Configure SVM
+  - Kernel: RBF
+  - C: 1.0
+  - Gamma: scale;
+  
+  :Train binary SVM classifier
+  on combined features;
+  
+  :Evaluate on test set;
+  
+  :Calculate metrics:
+  - Accuracy
+  - Precision (No Finding / Has Finding)
+  - Recall (No Finding / Has Finding)
+  - F1-Score (No Finding / Has Finding)
+  - Confusion Matrix;
+  
+  :Save Stage 1 model
+  (svm_stage1_binary.pkl);
+  
+else (no)
+  :Load existing Stage 1 model
+  from disk;
+endif
+
+|#9B59B6|Stage 2 Training|
+:Filter training data
+Keep only "Has Finding" cases;
+
+if (Train Stage 2 models?) then (yes)
+  
+  fork
+    :Disease: Atelectasis;
+    :Extract binary labels
+    (has/doesn't have);
+    :Apply SMOTE
+    (balance classes);
+    :Train binary SVM;
+    :Evaluate F1 & Accuracy;
+    :Save model;
+  fork again
+    :Disease: Cardiomegaly;
+    :Extract binary labels;
+    :Apply SMOTE;
+    :Train binary SVM;
+    :Evaluate F1 & Accuracy;
+    :Save model;
+  fork again
+    :Disease: Consolidation;
+    :Extract binary labels;
+    :Apply SMOTE;
+    :Train binary SVM;
+    :Evaluate F1 & Accuracy;
+    :Save model;
+  fork again
+    :Disease: Edema;
+    :Extract binary labels;
+    :Apply SMOTE;
+    :Train binary SVM;
+    :Evaluate F1 & Accuracy;
+    :Save model;
+  fork again
+    :Disease: Effusion;
+    :Extract binary labels;
+    :Apply SMOTE;
+    :Train binary SVM;
+    :Evaluate F1 & Accuracy;
+    :Save model;
+  fork again
+    :Disease: Emphysema;
+    :Extract binary labels;
+    :Apply SMOTE;
+    :Train binary SVM;
+    :Evaluate F1 & Accuracy;
+    :Save model;
+  fork again
+    :Disease: Fibrosis;
+    :Extract binary labels;
+    :Apply SMOTE;
+    :Train binary SVM;
+    :Evaluate F1 & Accuracy;
+    :Save model;
+  fork again
+    :Disease: Hernia;
+    :Extract binary labels;
+    :Apply SMOTE;
+    :Train binary SVM;
+    :Evaluate F1 & Accuracy;
+    :Save model;
+  fork again
+    :Disease: Infiltration;
+    :Extract binary labels;
+    :Apply SMOTE;
+    :Train binary SVM;
+    :Evaluate F1 & Accuracy;
+    :Save model;
+  fork again
+    :Disease: Mass;
+    :Extract binary labels;
+    :Apply SMOTE;
+    :Train binary SVM;
+    :Evaluate F1 & Accuracy;
+    :Save model;
+  fork again
+    :Disease: Nodule;
+    :Extract binary labels;
+    :Apply SMOTE;
+    :Train binary SVM;
+    :Evaluate F1 & Accuracy;
+    :Save model;
+  fork again
+    :Disease: Pleural_Thickening;
+    :Extract binary labels;
+    :Apply SMOTE;
+    :Train binary SVM;
+    :Evaluate F1 & Accuracy;
+    :Save model;
+  fork again
+    :Disease: Pneumonia;
+    :Extract binary labels;
+    :Apply SMOTE;
+    :Train binary SVM;
+    :Evaluate F1 & Accuracy;
+    :Save model;
+  fork again
+    :Disease: Pneumothorax;
+    :Extract binary labels;
+    :Apply SMOTE;
+    :Train binary SVM;
+    :Evaluate F1 & Accuracy;
+    :Save model;
+  end fork
+  
+  note right
+    **Parallel Training:**
+    All 14 disease models
+    trained simultaneously
+    using ProcessPoolExecutor
+  end note
+  
+  :Collect all trained models
+  (14 binary classifiers);
+  
+else (no)
+  :Load existing Stage 2 models
+  from disk (14 models);
+endif
+
+|#20B2AA|Evaluation|
+:Prepare full multi-label test set
+(includes "No Finding");
+
+:Run Two-Stage System Evaluation;
+
+:Stage 1: Predict Finding/No Finding;
+
+:For "Has Finding" cases:
+Run all 14 disease models;
+
+:Combine predictions
+into final multi-label output;
+
+:Calculate overall metrics:
+- Exact Match Accuracy
+- Hamming Loss
+- F1 Score (Macro)
+- F1 Score (Micro)
+- Jaccard Score;
+
+:Display per-disease metrics
+F1 & Accuracy for each condition;
+
+:Print Stage 1 binary accuracy;
+
+:Print complete system performance;
+
+|#32CD32|Output|
+:Save all trained models:
+- svm_stage1_binary.pkl
+- svm_stage2_<Disease>.pkl (×14)
+- feature_scaler.pkl
+- age_scaler.pkl
+- sex_encoder.pkl
+- view_encoder.pkl;
+
+:Save processed features
+(processed_features.npz);
+
+stop
+
+legend right
+  |= Model Type |= Purpose |
+  | Stage 1 SVM | Binary: Finding vs No Finding |
+  | Stage 2 SVM (×14) | Per-disease binary classifiers |
+  
+  |= Saved Files |= Location |
+  | Models | Model/trained_models/ |
+  | Processed Data | Data directory |
+  | Encoders | Data directory |
+  
+  |= Key Techniques |
+  | SMOTE | Class balancing |
+  | HOG | Feature extraction |
+  | StandardScaler | Feature normalization |
+  | One-Hot Encoding | Categorical variables |
+endlegend
+
+@enduml

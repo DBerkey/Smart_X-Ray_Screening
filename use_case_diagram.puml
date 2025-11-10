@@ -1,0 +1,185 @@
+@startuml Smart X-Ray Screening Use Case Diagram
+!pragma layout smetana
+skinparam backgroundColor #FEFEFE
+
+title Smart X-Ray Screening System - Use Case Diagram
+
+' ============ ACTORS ============
+actor "Radiologist/\nMedical Professional" as Doctor #LightBlue
+actor "Data Scientist/\nML Engineer" as DataScientist #LightGreen
+
+' ============ SYSTEM BOUNDARY ============
+rectangle "Smart X-Ray Screening System" {
+  
+  ' ------------ Web Application Use Cases ------------
+  package "Web Application" #AliceBlue {
+    usecase "Upload X-Ray Image" as UC1
+    usecase "Enter Patient Data" as UC2
+    usecase "View Analysis Results" as UC3
+    usecase "Export Results as PDF" as UC4
+    usecase "Print Results" as UC5
+    usecase "View Technical Details" as UC6
+    usecase "Access User Guide" as UC7
+  }
+  
+  ' ------------ Image Processing Use Cases ------------
+  package "Image Preprocessing" #Honeydew {
+    usecase "Preprocess X-Ray Image" as UC8
+    usecase "Apply CLAHE Enhancement" as UC9
+    usecase "Perform Edge Detection" as UC10
+    usecase "Resize and Normalize Image" as UC11
+    usecase "Batch Process Images" as UC12
+  }
+  
+  ' ------------ ML Model Prediction Use Cases ------------
+  package "ML Prediction System" #Lavender {
+    usecase "Extract HOG Features" as UC13
+    usecase "Encode Patient Metadata" as UC14
+    usecase "Run Stage 1 Classification\n(Finding/No Finding)" as UC15
+    usecase "Run Stage 2 Classification\n(Identify Conditions)" as UC16
+    usecase "Generate Prediction Results" as UC17
+  }
+  
+  ' ------------ Model Training Use Cases ------------
+  package "Model Training" #LightYellow {
+    usecase "Load Training Dataset" as UC18
+    usecase "Extract Image Features" as UC19
+    usecase "Prepare Training Labels" as UC20
+    usecase "Train Stage 1 Model" as UC21
+    usecase "Train Stage 2 Models\n(14 Diseases)" as UC22
+    usecase "Evaluate Model Performance" as UC23
+    usecase "Save Trained Models" as UC24
+    usecase "Apply SMOTE Balancing" as UC25
+  }
+  
+  ' ------------ Data Analysis Use Cases ------------
+  package "Data Analysis" #MistyRose {
+    usecase "Analyze Patient Demographics" as UC26
+    usecase "Analyze Disease Patterns" as UC27
+    usecase "Analyze Bounding Box Data" as UC28
+    usecase "Generate Visualization Charts" as UC29
+  }
+}
+
+' ============ ACTOR-USE CASE RELATIONSHIPS ============
+
+' Doctor/Medical Professional
+Doctor --> UC1
+Doctor --> UC2
+Doctor --> UC3
+Doctor --> UC4
+Doctor --> UC5
+Doctor --> UC6
+Doctor --> UC7
+
+' Data Scientist/ML Engineer
+DataScientist --> UC12
+DataScientist --> UC18
+DataScientist --> UC19
+DataScientist --> UC20
+DataScientist --> UC21
+DataScientist --> UC22
+DataScientist --> UC23
+DataScientist --> UC24
+DataScientist --> UC25
+DataScientist --> UC26
+DataScientist --> UC27
+DataScientist --> UC28
+DataScientist --> UC29
+
+' ============ USE CASE DEPENDENCIES ============
+
+' Upload flow
+UC1 ..> UC8 : <<include>>
+UC8 ..> UC9 : <<include>>
+UC8 ..> UC10 : <<include>>
+UC8 ..> UC11 : <<include>>
+
+' Prediction flow
+UC1 ..> UC13 : <<include>>
+UC2 ..> UC14 : <<include>>
+UC13 ..> UC15 : <<include>>
+UC14 ..> UC15 : <<include>>
+
+UC15 ..> UC16 : <<extend>>\n[if finding detected]
+UC16 ..> UC17 : <<include>>
+
+UC17 ..> UC3 : <<include>>
+
+' Export options
+UC3 ..> UC4 : <<extend>>
+UC3 ..> UC5 : <<extend>>
+
+' Training flow
+UC18 ..> UC12 : <<include>>
+UC18 ..> UC19 : <<include>>
+UC18 ..> UC20 : <<include>>
+
+UC21 ..> UC25 : <<include>>
+UC22 ..> UC25 : <<include>>
+
+UC21 ..> UC23 : <<include>>
+UC22 ..> UC23 : <<include>>
+
+UC23 ..> UC24 : <<include>>
+
+' Analysis dependencies
+UC26 ..> UC29 : <<include>>
+UC27 ..> UC29 : <<include>>
+UC28 ..> UC29 : <<include>>
+
+' ============ NOTES ============
+note right of UC15
+  Binary classification:
+  - 0 = No Finding
+  - 1 = Has Finding
+end note
+
+note right of UC16
+  Multi-label classification
+  for 14 conditions:
+  - Atelectasis
+  - Cardiomegaly
+  - Consolidation
+  - Edema
+  - Effusion
+  - Emphysema
+  - Fibrosis
+  - Hernia
+  - Infiltration
+  - Mass
+  - Nodule
+  - Pleural Thickening
+  - Pneumonia
+  - Pneumothorax
+end note
+
+note bottom of UC22
+  Parallel training using
+  ProcessPoolExecutor
+  with SMOTE balancing
+end note
+
+note right of UC8
+  Pipeline:
+  1. CLAHE enhancement
+  2. Median blur
+  3. Resize to 500x500
+  4. Edge detection (optional)
+end note
+
+legend right
+  |= Relationship |= Description |
+  | ──> | Association (Actor uses Use Case) |
+  | ..> <<include>> | Required dependency |
+  | ..> <<extend>> | Optional/conditional extension |
+  
+  |= System Components |
+  | Web Application | Flask-based user interface |
+  | Image Preprocessing | OpenCV processing pipeline |
+  | ML Prediction | SVM-based two-stage classifier |
+  | Model Training | Training and evaluation pipeline |
+  | Data Analysis | Dataset analysis and visualization |
+endlegend
+
+@enduml
