@@ -213,10 +213,11 @@ def preprocess_filepaths_threaded(filepaths, output_dir, num_threads=NUM_THREADS
                 filepath, output_size, process_types=process_types
             )
             
-            # Convert multi-channel to grayscale by averaging channels
+            # Convert multi-channel to grayscale by combining channels
             if len(processed_image.shape) == 3 and processed_image.shape[2] > 1:
-                # Merge channels by taking the mean across channels
-                grayscale_image = np.mean(processed_image, axis=2).astype(np.uint8)
+                # Use max to overlay edges onto the base image
+                # This preserves the enhanced image while drawing edges on top
+                grayscale_image = np.max(processed_image, axis=2).astype(np.uint8)
             elif len(processed_image.shape) == 3:
                 # Single channel stored as 3D array
                 grayscale_image = processed_image[:, :, 0]
@@ -250,11 +251,11 @@ if __name__ == "__main__":
     preprocess_batch(
         INPUT_DIRECTORY,
         OUTPUT_DIRECTORY,
-        process_types=['standard']
+        process_types=['standard', 'edges']
     )
 
     # Uncomment to test single image processing with process visualization
-    # preprocess_xray('images/00000001_000.png', show_process=True)
+    preprocess_xray('images/00000001_000.png', show_process=True, process_types=['standard', 'edges'])
 
     # Load and display processed grayscale image
     # img = cv2.imread('preprocessed/processed_00000001_000.png', cv2.IMREAD_GRAYSCALE)
