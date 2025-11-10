@@ -10,7 +10,6 @@ import pickle
 import numpy as np
 import pandas as pd
 from PIL import Image
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from skimage.feature import hog
 
 MODEL_DIR = os.path.dirname(__file__)
