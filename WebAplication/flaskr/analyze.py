@@ -1,4 +1,17 @@
-# flaskr/analyze.py
+"""
+X-Ray Image Analysis Module for Smart X-Ray Screening Web Application.
+
+This module handles the processing and analysis of uploaded X-ray images, including:
+- File upload validation and processing
+- Image preprocessing
+- ML model prediction
+- Result generation and storage
+- Image serving functionality
+
+The module integrates with the preprocessing pipeline and ML models to analyze
+X-ray images and detect various medical conditions.
+"""
+
 import os
 from PIL import Image, UnidentifiedImageError
 import json
@@ -24,12 +37,26 @@ from flask import (
 from werkzeug.utils import secure_filename
 from PIL import Image  
 
+# Blueprint for handling X-ray image analysis routes
 bp = Blueprint("analyze", __name__)
 
+# Set of allowed file extensions for X-ray image uploads
 ALLOWED_EXTS = {"png", "jpg", "jpeg", "bmp", "gif"}
 
-# Return Interfaces, Interfaces/Input, Interfaces/PreProcess, Interfaces/Processed
 def _interfaces_paths() -> Tuple[Path, Path, Path, Path]:
+    """
+    Get paths to the Interfaces directories used for image processing.
+
+    Returns:
+        Tuple[Path, Path, Path, Path]: A tuple containing paths to:
+            - Interfaces root directory
+            - Input directory (for uploaded images)
+            - PreProcess directory (for intermediate processing)
+            - Processed directory (for final results)
+
+    Note:
+        Creates the directories if they don't exist.
+    """
     repo_root = Path(current_app.root_path).parents[1]   
     root = repo_root / "Interfaces"                      
     input_dir = root / "Input"
@@ -42,6 +69,16 @@ def _interfaces_paths() -> Tuple[Path, Path, Path, Path]:
     return root, input_dir, preproc_dir, processed_dir
 
 def _is_valid_image(path: Path) -> bool:
+    """
+    Validate if a file is a supported image format.
+
+    Args:
+        path (Path): Path to the image file to validate.
+
+    Returns:
+        bool: True if the file is a valid image in a supported format,
+              False otherwise.
+    """
     try:
         with Image.open(path) as im:
             im.verify()  # validate file integrity
@@ -52,8 +89,17 @@ def _is_valid_image(path: Path) -> bool:
     except Exception:
         return False
 
-# Save file to Interfaces/Input, returns path
 def _save_direct_to_interfaces_input(upload_file) -> Path:
+    """
+    Save an uploaded file directly to the Interfaces/Input directory.
+
+    Args:
+        upload_file: The uploaded file object from Flask's request.files
+
+    Returns:
+        Path: Path to the saved file in the Input directory.
+            The filename includes a timestamp to ensure uniqueness.
+    """
     _, input_dir, _, _ = _interfaces_paths()
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%f")
     orig_name = secure_filename(upload_file.filename)
@@ -67,6 +113,10 @@ def _try_run_preprocessing_pipeline(input_image_path: Path) -> Path:
     Run the preprocessing pipeline on the uploaded image.
     Args:
         input_image_path (Path): Path to the input image file.
+    Returns:
+        out_img_path (Path): Path to the pre-processed image file.
+    Raises:
+        ValueError: If the preprocessing does not return a valid numpy array.
     """
     _, _, preproc_dir, processed_dir = _interfaces_paths()
     preproc_dir.mkdir(parents=True, exist_ok=True)
@@ -113,6 +163,14 @@ def _load_interfaces_outputs(preproc_dir: Path, processed_dir: Path):
     JSON supported:
       A) {"findings":[{"label": "...", "score": 0.87, "bbox": [x,y,w,h]?}]}
       B) {"Disease":{"Sureness": 87, "Box_x": a, "Box_y": b, ...}, ...}
+    Args:
+        preproc_dir (Path): Path to the PreProcess directory.
+        processed_dir (Path): Path to the Processed directory.
+    Returns:
+        Tuple[Optional[Path], list, None]:
+            - annotated_path (Optional[Path]): Path to the annotated image if available, else None.
+            - findings (list): List of findings extracted from the processed_data.json.
+            - overall_conf (None): Placeholder for overall confidence, currently None.
     """
     def _norm_score(v):
         try:
@@ -172,6 +230,19 @@ def _load_interfaces_outputs(preproc_dir: Path, processed_dir: Path):
 
 # Form helpers
 def _coerce_age(value):
+    """
+    Convert age input to a standardized format.
+
+    Args:
+        value: The age value from the form input.
+
+    Returns:
+        Union[int, str, None]: Standardized age value where:
+            - None for invalid or empty input
+            - "Below 1" for age 0
+            - "100+" for age 100 or greater
+            - int for all other valid ages
+    """
     if value in (None, "", "Choose..."):
         return None
     if value == "0":
@@ -184,12 +255,39 @@ def _coerce_age(value):
         return None
 
 def _now_utc_z() -> str:
+    """
+    Get the current UTC time in ISO 8601 format with 'Z' timezone designator.
+
+    Returns:
+        str: Current UTC time in format YYYY-MM-DDTHH:mm:ss.sssZ
+    """
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 # Routes
 @bp.route("/analyze", methods=["POST"])
 def analyze_upload():
+    """
+    Handle the upload and analysis of X-ray images.
+
+    Processes form data including:
+    - Uploaded X-ray image
+    - Patient information (sex, age, view)
+    
+    Workflow:
+    1. Validates the uploaded file and patient data
+    2. Saves the image and metadata to Interfaces/Input
+    3. Runs preprocessing pipeline
+    4. Executes ML model prediction
+    5. Stores results and redirects to results page
+
+    Returns:
+        Response: Redirect to results page on success
+        
+    Raises:
+        400: If required fields are missing or invalid
+        404: If processing fails
+    """
     # Validate file
     f = request.files.get("image")
     if not f or not f.filename:
@@ -357,6 +455,11 @@ def serve_interfaces_image(area, filename):
     - Input (original upload):       read -> send (KEEP)
     - PreProcess (intermediate):     read -> send -> DELETE (ephemeral)
     - Processed (final annotated):   read -> send (KEEP)
+    Args:
+        area (str): One of "Input", "PreProcess", "Processed".
+        filename (str): Filename to serve.
+    Returns:
+        Response: Flask response with the image file.
     """
     _, input_dir, preproc_dir, processed_dir = _interfaces_paths()
     if area not in {"Input", "PreProcess", "Processed"}:

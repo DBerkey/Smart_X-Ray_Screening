@@ -1,3 +1,15 @@
+"""
+Results display module for the Smart X-Ray Screening web application.
+
+This module handles the display and export of X-ray analysis results, including:
+- Rendering the results page with findings and patient information
+- PDF report generation and export
+- Management of result data from the analysis session
+
+The module works with analyzed X-ray data stored in the session and provides
+both web-based viewing and PDF export capabilities.
+"""
+
 from io import BytesIO
 from pathlib import Path
 
@@ -9,10 +21,25 @@ from reportlab.lib.utils import ImageReader
 # Reuse helpers from analyze.py
 from .analyze import _interfaces_paths  # provides Input/PreProcess/Processed directories
 
+# Blueprint for handling result display and export routes
 bp = Blueprint("results", __name__)
 
 @bp.route("/results")
 def show_results():
+    """
+    Display the X-ray analysis results page.
+    
+    Renders a template showing:
+    - The analyzed X-ray image
+    - Number and details of findings
+    - Patient information
+    - Analysis timestamp
+    - Overall confidence scores
+    - Result stage information
+
+    Returns:
+        Response: Rendered results template, or redirects to home if no results exist.
+    """
     payload = session.get("latest_result")
     if not payload:
         return redirect("/")
@@ -34,6 +61,23 @@ def show_results():
 
 @bp.route("/results/export-pdf")
 def export_pdf():
+    """
+    Generate and serve a PDF report of the X-ray analysis results.
+
+    Creates a PDF document containing:
+    - Analysis timestamp
+    - X-ray image (if available)
+    - List of detected findings
+    - Patient information (sex, age, view)
+
+    The PDF is generated in-memory using ReportLab and served as a downloadable file.
+
+    Returns:
+        Response: PDF file attachment response
+
+    Raises:
+        404: If no result data is found in the session
+    """
     payload = session.get("latest_result")
     if not payload:
         abort(404, "No result in session.")
