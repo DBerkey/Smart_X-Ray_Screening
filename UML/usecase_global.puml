@@ -16,11 +16,23 @@ rectangle "Smart X-Ray Screening System" {
   usecase "Analyze Patient X-Ray" as UC1
   usecase "View Diagnostic Results" as UC2
   usecase "Export Report" as UC3
+  usecase "Create Results" as UC15
+  
+  ' System Processing (Internal)
+  usecase "Preprocess X-Ray Image" as UC8
+  usecase "Extract Image Features" as UC9
+  usecase "Classify Findings" as UC10
+  usecase "Identify Diseases" as UC11
   
   ' Model Development
   usecase "Train ML Models" as UC4
   usecase "Evaluate Model Performance" as UC5
   usecase "Analyze Dataset Statistics" as UC6
+  usecase "Batch Preprocess Training Images" as UC14
+  
+  ' Data Management
+  usecase "Save Training Data & Models" as UC12
+  usecase "Load Trained Models" as UC13
   
   ' Supporting
   usecase "Access System Documentation" as UC7
@@ -41,9 +53,23 @@ DataScientist --> UC6
 DataScientist --> UC7
 
 ' Use case dependencies
-UC1 ..> UC2 : <<include>>
-UC2 ..> UC3 : <<extend>>
+
+' Clinical workflow - includes system processing
+UC1 ..> UC8 : <<include>>
+UC8 ..> UC9 : <<include>>
+UC9 ..> UC13 : <<include>>
+UC13 ..> UC10 : <<include>>
+UC10 ..> UC11 : <<extend>>\n[if finding detected]
+UC10 ..> UC15 : <<include>>
+UC11 ..> UC15 : <<include>>
+UC15 ..> UC3 : <<extend>>
+UC15 ..> UC2 : <<extend>>
+
+' Model development workflow
+UC4 ..> UC14 : <<include>>
+UC14 ..> UC9 : <<include>>
 UC4 ..> UC5 : <<include>>
+UC5 ..> UC12 : <<include>>
 
 legend right
   |= Actor |= Role |
