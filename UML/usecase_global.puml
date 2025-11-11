@@ -1,0 +1,59 @@
+@startuml Smart X-Ray Screening Global Use Case
+!pragma layout smetana
+skinparam backgroundColor #FEFEFE
+skinparam linetype ortho
+
+title Smart X-Ray Screening System - Global Use Case Diagram
+
+' ============ ACTORS ============
+actor "Radiologist/\nMedical Professional" as Doctor #LightBlue
+actor "Data Scientist/\nML Engineer" as DataScientist #LightGreen
+
+' ============ SYSTEM BOUNDARY ============
+rectangle "Smart X-Ray Screening System" {
+  
+  ' Clinical Workflow
+  usecase "Analyze Patient X-Ray" as UC1
+  usecase "View Diagnostic Results" as UC2
+  usecase "Export Report" as UC3
+  
+  ' Model Development
+  usecase "Train ML Models" as UC4
+  usecase "Evaluate Model Performance" as UC5
+  usecase "Analyze Dataset Statistics" as UC6
+  
+  ' Supporting
+  usecase "Access System Documentation" as UC7
+}
+
+' ============ RELATIONSHIPS ============
+
+' Radiologist actions
+Doctor --> UC1
+Doctor --> UC2
+Doctor --> UC3
+Doctor --> UC7
+
+' Data Scientist actions
+DataScientist --> UC4
+DataScientist --> UC5
+DataScientist --> UC6
+DataScientist --> UC7
+
+' Use case dependencies
+UC1 ..> UC2 : <<include>>
+UC2 ..> UC3 : <<extend>>
+UC4 ..> UC5 : <<include>>
+
+legend right
+  |= Actor |= Role |
+  | Radiologist | Diagnoses patients using ML predictions |
+  | Data Scientist | Develops and maintains ML models |
+  
+  |= Relationship |
+  | ──> | Uses |
+  | ..> <<include>> | Required |
+  | ..> <<extend>> | Optional |
+endlegend
+
+@enduml
